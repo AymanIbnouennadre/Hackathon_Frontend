@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import Webcam from "react-webcam";
-import { Upload, Camera, XCircle, ArrowLeft, Sparkles, Image } from "lucide-react";
-import NextImage from "next/image";
+import axios from "axios";
+import { Upload, Camera, Play, Pause, Trash, XCircle, ArrowLeft, RotateCcw, Sparkles, Image as LucideImage } from "lucide-react";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -13,9 +14,14 @@ export default function OCRTTSPage() {
   const [language, setLanguage] = useState<"FR" | "AR" | null>(null);
   const [modalIsOpen, setModalIsOpen] = useState(false);
   const [imageCaptured, setImageCaptured] = useState<string | null>(null);
+  const [audioSrc, setAudioSrc] = useState<string | null>(null);
+  const [isAudioLoading, setIsAudioLoading] = useState(false);
   const [isConverting, setIsConverting] = useState(false);
   const [isConverted, setIsConverted] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentWordIndex, setCurrentWordIndex] = useState(-1);
   const webcamRef = useRef<Webcam>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
 
   const isMobileDevice = () => {
     if (typeof window === "undefined") return false;
@@ -24,6 +30,20 @@ export default function OCRTTSPage() {
 
   const videoConstraints = {
     facingMode: isMobileDevice() ? { exact: "environment" } : "user",
+  };
+
+  const cleanupAudio = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      audioRef.current.src = "";
+    }
+    if (audioSrc) {
+      URL.revokeObjectURL(audioSrc);
+      setAudioSrc(null);
+    }
+    setIsPlaying(false);
+    setCurrentWordIndex(-1);
   };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -41,6 +61,7 @@ export default function OCRTTSPage() {
   };
 
   const handleBackToLanguageChoice = () => {
+    cleanupAudio();
     setLanguage(null);
     setSelectedFile(null);
     setExtractedText("");
@@ -62,29 +83,16 @@ export default function OCRTTSPage() {
     try {
       const apiUrl =
         language === "FR"
-          ? `${process.env.NEXT_PUBLIC_API_URL}/convert-image-to-textFR/`
-          : `${process.env.NEXT_PUBLIC_API_URL}/convert-image-to-textAR/`;
-      console.log("Appel API OCR vers :", apiUrl); // Log pour diagnostic
+          ? "http://localhost:8000/convert-image-to-textFR/"
+          : "http://localhost:8000/convert-image-to-textAR/";
+      console.log("Appel API OCR vers :", apiUrl);
 
-      const response = await fetch(apiUrl, {
-        method: "POST",
-        body: formData,
+      const response = await axios.post(apiUrl, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
       });
 
-      const contentType = response.headers.get("content-type");
-      if (!contentType || !contentType.includes("application/json")) {
-        const text = await response.text();
-        console.error("Réponse API non-JSON :", text.slice(0, 200)); // Log pour diagnostic
-        throw new Error(
-          language === "FR"
-            ? `Réponse non-JSON reçue (code ${response.status}). Vérifiez l'URL de l'API.`
-            : `استجابة غير JSON (رمز ${response.status}). تحقق من عنوان URL للـ API.`
-        );
-      }
-
-      const data = await response.json();
-      const normalizedText = data.extracted_text
-        ? data.extracted_text.replace(/\n+/g, " ").trim()
+      const normalizedText = response.data.extracted_text
+        ? response.data.extracted_text.replace(/\n+/g, " ").trim()
         : language === "FR"
         ? "Aucun texte extrait."
         : "لم يتم استخراج نص.";
@@ -92,14 +100,182 @@ export default function OCRTTSPage() {
       setIsConverted(true);
     } catch (error) {
       console.error("Erreur OCR :", error);
+      const errorMessage = error.response
+        ? `Erreur : ${error.response.status} - ${error.response.data.detail || error.message}`
+        : `Erreur : ${error.message}`;
       setExtractedText(
         language === "FR"
-          ? `Erreur : ${error.message}`
-          : `خطأ: ${error.message}`
+          ? errorMessage
+          : `خطأ: ${errorMessage}`
       );
       setIsConverted(true);
     } finally {
       setIsConverting(false);
+    }
+  };
+
+  const handleTextToSpeech = async () => {
+    if (!extractedText || extractedText.includes("Erreur") || extractedText.includes("خطأ")) {
+      console.log("TTS bloqué : texte vide ou contient une erreur");
+      return;
+    }
+
+    setIsAudioLoading(true);
+    try {
+      const apiUrl =
+        language === "FR"
+          ? "http://localhost:8000/convert-text-to-speechFR/"
+          : "http://localhost:8000/convert-text-to-speechAR/";
+      console.log("Appel API TTS vers :", apiUrl, "avec texte :", extractedText);
+
+      // Valider la taille du texte pour éviter une URL trop longue
+      if (encodeURIComponent(extractedText).length > 2000) {
+        throw new Error(language === "FR" ? "Texte trop long pour TTS." : "النص طويل جدًا لتحويل النص إلى كلام.");
+      }
+
+      const response = await axios.post(
+        `${apiUrl}?text=${encodeURIComponent(extractedText)}`,
+        {},
+        { responseType: "blob" }
+      );
+
+      // Vérifier que la réponse est un Blob valide
+      if (!(response.data instanceof Blob)) {
+        throw new Error(language === "FR" ? "Réponse API invalide : pas un Blob." : "استجابة API غير صالحة: ليس Blob.");
+      }
+
+      const audioBlob = response.data;
+      console.log("Taille du Blob audio :", audioBlob.size);
+
+      if (audioBlob.size === 0) {
+        throw new Error(language === "FR" ? "Fichier audio vide." : "ملف صوتي فارغ.");
+      }
+
+      const audioUrl = URL.createObjectURL(audioBlob);
+      console.log("URL audio créé :", audioUrl);
+      setAudioSrc(audioUrl);
+    } catch (error) {
+      console.error("Erreur TTS détaillée :", {
+        message: error.message,
+        response: error.response ? {
+          status: error.response.status,
+          data: error.response.data,
+        } : null,
+        stack: error.stack,
+      });
+
+      const errorMessage = error.response
+        ? `Erreur ${error.response.status}: ${error.response.data.detail || error.message}`
+        : `Erreur: ${error.message}`;
+      setExtractedText(
+        language === "FR"
+          ? `Erreur de synthèse vocale : ${errorMessage}`
+          : `خطأ في تحويل النص إلى كلام: ${errorMessage}`
+      );
+    } finally {
+      setIsAudioLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!audioSrc || !audioRef.current) {
+      console.log("useEffect TTS ignoré : audioSrc ou audioRef manquant");
+      return;
+    }
+
+    audioRef.current.src = audioSrc;
+    const playAudio = () => {
+      if (audioRef.current) {
+        console.log("Tentative de lecture audio");
+        const playPromise = audioRef.current.play();
+        if (playPromise !== undefined) {
+          playPromise
+            .then(() => {
+              console.log("Lecture audio démarrée");
+              setIsPlaying(true);
+            })
+            .catch((error) => {
+              console.warn("Erreur lecture automatique :", error);
+              setIsPlaying(false);
+            });
+        }
+      }
+    };
+
+    audioRef.current.addEventListener("loadedmetadata", playAudio, { once: true });
+
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.removeEventListener("loadedmetadata", playAudio);
+      }
+    };
+  }, [audioSrc]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio || !audioSrc) return;
+
+    const handleTimeUpdate = () => {
+      const words = extractedText.split(/\s+/);
+      const duration = audio.duration;
+      const currentTime = audio.currentTime;
+      const wordDuration = duration / words.length;
+      const adjustedTime = currentTime * 1.04;
+      const newWordIndex = Math.floor(adjustedTime / wordDuration);
+      setCurrentWordIndex(newWordIndex < words.length ? newWordIndex : -1);
+    };
+
+    const handlePlay = () => setIsPlaying(true);
+    const handlePause = () => setIsPlaying(false);
+    const handleEnded = () => {
+      setIsPlaying(false);
+      setCurrentWordIndex(-1);
+    };
+
+    audio.addEventListener("timeupdate", handleTimeUpdate);
+    audio.addEventListener("play", handlePlay);
+    audio.addEventListener("pause", handlePause);
+    audio.addEventListener("ended", handleEnded);
+
+    return () => {
+      audio.removeEventListener("timeupdate", handleTimeUpdate);
+      audio.removeEventListener("play", handlePlay);
+      audio.removeEventListener("pause", handlePause);
+      audio.removeEventListener("ended", handleEnded);
+      cleanupAudio();
+    };
+  }, [audioSrc, extractedText]);
+
+  const handlePlayPause = () => {
+    if (audioRef.current) {
+      if (isPlaying) {
+        audioRef.current.pause();
+      } else {
+        const playPromise = audioRef.current.play();
+        if (playPromise !== undefined) {
+          playPromise
+            .then(() => setIsPlaying(true))
+            .catch((error) => {
+              console.warn("Erreur lors de la reprise :", error);
+              setIsPlaying(false);
+            });
+        }
+      }
+    }
+  };
+
+  const handleReplay = () => {
+    if (audioRef.current) {
+      audioRef.current.currentTime = 0;
+      const playPromise = audioRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => setIsPlaying(true))
+          .catch((error) => {
+            console.warn("Erreur lors de la relecture :", error);
+            setIsPlaying(false);
+          });
+      }
     }
   };
 
@@ -123,6 +299,7 @@ export default function OCRTTSPage() {
   };
 
   const handleClear = () => {
+    cleanupAudio();
     setSelectedFile(null);
     setImageCaptured(null);
     setExtractedText("");
@@ -133,7 +310,10 @@ export default function OCRTTSPage() {
     if (!extractedText) return "...";
     const words = extractedText.split(/\s+/);
     return words.map((word, index) => (
-      <span key={index} className="px-0.5">
+      <span
+        key={index}
+        className={index === currentWordIndex ? "bg-cyan-400/30 px-0.5" : "px-0.5"}
+      >
         {word}{" "}
       </span>
     ));
@@ -170,15 +350,15 @@ export default function OCRTTSPage() {
           </h1>
           <p className="text-lg md:text-xl text-gray-300 max-w-3xl mx-auto">
             {language === "AR"
-              ? "اسحب، قم بالتحميل أو استخدم الكاميرا لاستخراج النص من الصور."
-              : "Déposez, téléchargez ou utilisez la caméra pour extraire le texte des images."}
+              ? "اسحب، قم بالتحميل أو استخدم الكاميرا لاستخراج النص من الصور وتحويله إلى صوت."
+              : "Déposez, téléchargez ou utilisez la caméra pour extraire le texte des images et le convertir en audio."}
           </p>
         </div>
 
         <Card className="bg-white/5 backdrop-blur-sm border-white/10 shadow-xl max-w-4xl mx-auto">
           <CardHeader>
             <CardTitle className="text-white text-2xl flex items-center font-tajawal">
-              <Image className="h-6 w-6 text-cyan-400 mr-2" />
+              <LucideImage className="h-6 w-6 text-cyan-400 mr-2" />
               {language === "AR" ? "التعرف على الصور" : "Image-to-Text"}
             </CardTitle>
           </CardHeader>
@@ -193,6 +373,59 @@ export default function OCRTTSPage() {
                     <ArrowLeft className="mr-2 h-5 w-5" />
                     {language === "FR" ? "Choix de langues" : "العودة لاختيار اللغة"}
                   </Button>
+                  {isConverted && (
+                    <div className="mt-4 flex flex-wrap justify-center gap-2">
+                      <Button
+                        onClick={handleTextToSpeech}
+                        disabled={isAudioLoading || !!audioSrc || extractedText.includes("Erreur") || extractedText.includes("خطأ")}
+                        className="bg-gradient-to-r from-green-500 to-teal-600 hover:from-green-600 hover:to-teal-700 text-white"
+                        title={language === "FR" ? "Lire le texte" : "استمع إلى النص"}
+                      >
+                        {isAudioLoading ? (
+                          <div className="flex gap-1">
+                            <div className="h-2 w-2 animate-pulse rounded-full bg-white"></div>
+                            <div className="h-2 w-2 animate-pulse rounded-full bg-white delay-100"></div>
+                            <div className="h-2 w-2 animate-pulse rounded-full bg-white delay-200"></div>
+                          </div>
+                        ) : (
+                          <span className="mr-2">(Volume)</span>
+                        )}
+                        {language === "FR" ? "Lire" : "استمع"}
+                      </Button>
+                      {audioSrc && (
+                        <>
+                          <Button
+                            onClick={handlePlayPause}
+                            className="bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white"
+                            title={language === "FR" ? "Pause/Reprendre" : "إيقاف/استئناف"}
+                          >
+                            {isPlaying ? (
+                              <Pause className="mr-2 h-5 w-5" />
+                            ) : (
+                              <Play className="mr-2 h-5 w-5" />
+                            )}
+                            {language === "FR" ? "Pause/Reprendre" : "إيقاف/استئناف"}
+                          </Button>
+                          <Button
+                            onClick={handleReplay}
+                            className="bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700 text-white"
+                            title={language === "FR" ? "Relire" : "إعادة التشغيل"}
+                          >
+                            <RotateCcw className="mr-2 h-5 w-5" />
+                            {language === "FR" ? "Relire" : "إعادة"}
+                          </Button>
+                        </>
+                      )}
+                      <Button
+                        onClick={handleClear}
+                        className="bg-gradient-to-r from-red-500 to-pink-600 hover:from-red-600 hover:to-pink-700 text-white"
+                        title={language === "FR" ? "Effacer" : "مسح"}
+                      >
+                        <Trash className="mr-2 h-5 w-5" />
+                        {language === "FR" ? "Effacer" : "مسح"}
+                      </Button>
+                    </div>
+                  )}
                 </div>
 
                 {!imageCaptured && !isConverted && (
@@ -235,12 +468,11 @@ export default function OCRTTSPage() {
                 {imageCaptured && !isConverted && (
                   <div className="text-center">
                     <div className="relative mx-auto h-64 w-full max-w-md overflow-hidden rounded-lg shadow-md">
-                      <NextImage
+                      <Image
                         src={imageCaptured}
                         alt="Aperçu"
-                        layout="fill"
-                        objectFit="contain"
-                        className="rounded-lg"
+                        fill
+                        className="rounded-lg object-contain"
                       />
                     </div>
                     <p className="mt-2 text-gray-300">{selectedFile?.name}</p>
@@ -285,14 +517,6 @@ export default function OCRTTSPage() {
                     >
                       {renderHighlightedText()}
                     </p>
-                    <Button
-                      onClick={handleClear}
-                      className="mt-4 bg-gradient-to-r from-red-500 to-pink-600 hover:from-red-600 hover:to-pink-700 text-white"
-                      title={language === "FR" ? "Effacer" : "مسح"}
-                    >
-                      <XCircle className="mr-2 h-5 w-5" />
-                      {language === "FR" ? "Effacer" : "مسح"}
-                    </Button>
                   </div>
                 )}
               </div>
@@ -318,7 +542,6 @@ export default function OCRTTSPage() {
         </Card>
       </main>
 
-      {/* Modal pour la webcam */}
       {modalIsOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
           <Card className="relative w-full max-w-2xl bg-white/10 backdrop-blur-sm border-white/10">
@@ -362,6 +585,14 @@ export default function OCRTTSPage() {
           </Card>
         </div>
       )}
+
+      <audio
+        ref={audioRef}
+        onEnded={() => {
+          setIsPlaying(false);
+          setCurrentWordIndex(-1);
+        }}
+      />
     </div>
   );
 }
