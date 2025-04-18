@@ -1,4 +1,4 @@
-# Frontend template with Next Js 
+# Frontend with Next Js & tailwindCss
 **1. clone project :**
 ```
 git clone https://github.com/AymanIbnouennadre/Hackathon_Frontend.git
