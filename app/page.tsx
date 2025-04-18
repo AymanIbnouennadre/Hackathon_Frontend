@@ -1,4 +1,3 @@
-// app/page.tsx
 import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
@@ -7,7 +6,7 @@ import { ArrowRight, Mic, BookOpen, BrainCircuit, MessageSquare, Image as ImageI
 export default function LandingPage() {
   return (
     <div className="flex flex-col min-h-screen bg-gradient-to-b from-gray-900 to-black text-white overflow-hidden">
-      {/* Scroll to Top Button */}
+      {/* Bouton de retour en haut */}
       <div className="fixed bottom-6 left-6 z-50">
         <Link href="#home">
           <Button
@@ -19,7 +18,7 @@ export default function LandingPage() {
         </Link>
       </div>
 
-      {/* Animated background */}
+      {/* Fond animé */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-0 left-0 w-full h-full opacity-10">
           <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-500 rounded-full filter blur-[100px] animate-pulse"></div>
@@ -35,7 +34,7 @@ export default function LandingPage() {
         <div className="absolute inset-0 bg-grid-white/[0.02] bg-[length:50px_50px]"></div>
       </div>
 
-      {/* Hero Section */}
+      {/* Section d'accueil */}
       <header id="home" className="relative">
         <div className="container mx-auto px-4 py-6">
           <nav className="flex justify-between items-center">
@@ -50,16 +49,16 @@ export default function LandingPage() {
             </div>
             <div className="hidden md:flex space-x-6 items-center">
               <Link href="#home" className="hover:text-cyan-400 transition-colors">
-                Home
+                Accueil
               </Link>
               <Link href="#features" className="hover:text-cyan-400 transition-colors">
-                Features
+                Fonctionnalités
               </Link>
               <Link href="#team" className="hover:text-cyan-400 transition-colors">
-                Team
+                Équipe
               </Link>
               <Link href="#ready" className="hover:text-cyan-400 transition-colors">
-                Ready
+                Prêt
               </Link>
             </div>
             <Button className="md:hidden" variant="outline">
@@ -71,53 +70,45 @@ export default function LandingPage() {
             <div className="space-y-6 relative max-w-4xl">
               <div className="absolute -left-10 -top-10 w-40 h-40 bg-purple-600/20 rounded-full filter blur-3xl"></div>
               <h1 className="text-4xl md:text-6xl font-bold leading-tight">
-                <span className="block">AI-Powered</span>
+                <span className="block">Propulsé par l'IA</span>
                 <span className="bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-500">
-                  Dyslexia Support
+                  Soutien à la Dyslexie
                 </span>
               </h1>
               <p className="text-xl md:text-2xl text-gray-300">
-                Unlock your potential with personalized tools designed to make reading and writing accessible for everyone.
+                Libérez votre potentiel avec des outils personnalisés conçus pour rendre la lecture et l'écriture accessibles à tous.
               </p>
               <div className="flex justify-center space-x-4 pt-4">
-                <Link href="/home">
+                <Link href="/features">
                   <Button
                     size="lg"
                     className="bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-600 hover:to-purple-700 border-0 shadow-lg shadow-purple-700/30 transition-all duration-300 hover:shadow-xl hover:shadow-purple-700/40"
                   >
-                    Get Started
+                    Commencer
                     <ArrowRight className="ml-2 h-5 w-5" />
                   </Button>
                 </Link>
-                <Link href="/features">
-                  <Button
-                    size="lg"
-                    variant="outline"
-                    className="border-cyan-400 text-cyan-400 hover:bg-cyan-400/10 backdrop-blur-sm"
-                  >
-                    Explore Features
-                  </Button>
-                </Link>
+                
               </div>
             </div>
           </div>
         </div>
       </header>
 
-      {/* Features Section */}
+      {/* Section des fonctionnalités */}
       <section id="features" className="py-20 relative">
         <div className="absolute inset-0 bg-gradient-to-b from-black/0 via-purple-900/10 to-black/0"></div>
         <div className="container mx-auto px-4 relative">
           <div className="text-center mb-16">
             <div className="inline-flex items-center justify-center mb-4">
               <Sparkles className="h-5 w-5 text-cyan-400 mr-2" />
-              <span className="text-sm font-medium uppercase tracking-wider text-cyan-400">AI-Powered Features</span>
+              <span className="text-sm font-medium uppercase tracking-wider text-cyan-400">Fonctionnalités Propulsées par l'IA</span>
             </div>
             <h2 className="text-3xl md:text-5xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-purple-600">
-              Innovative Tools for Better Reading
+              Outils Innovants pour une Meilleure Lecture
             </h2>
             <p className="text-xl text-gray-300 max-w-3xl mx-auto">
-              Our cutting-edge AI technologies provide personalized support for dyslexic readers.
+              Nos technologies d'IA de pointe offrent un soutien personnalisé aux lecteurs dyslexiques.
             </p>
           </div>
 
@@ -125,7 +116,7 @@ export default function LandingPage() {
             <FeatureCard
               icon={<Mic className="h-10 w-10 text-cyan-400" />}
               title="Speech-to-Text"
-              description="Convert your spoken words into written text with high accuracy, making writing tasks easier."
+              description="Transformez vos paroles en texte écrit avec une grande précision, facilitant les tâches d'écriture."
               gradient="from-cyan-500/20 to-blue-500/20"
               hoverGradient="from-cyan-500/30 to-blue-500/30"
               delay="0"
@@ -133,7 +124,7 @@ export default function LandingPage() {
             <FeatureCard
               icon={<BookOpen className="h-10 w-10 text-purple-400" />}
               title="Text-to-Speech"
-              description="Listen to any text with natural-sounding voices and adjustable reading speeds."
+              description="Écoutez n'importe quel texte avec des voix naturelles et des vitesses de lecture ajustables."
               gradient="from-purple-500/20 to-pink-500/20"
               hoverGradient="from-purple-500/30 to-pink-500/30"
               delay="100"
@@ -141,7 +132,7 @@ export default function LandingPage() {
             <FeatureCard
               icon={<ImageIcon className="h-10 w-10 text-cyan-400" />}
               title="Image-to-Text"
-              description="Extract text from images effortlessly, aiding comprehension and accessibility."
+              description="Extrayez le texte des images sans effort, améliorant la compréhension et l'accessibilité."
               gradient="from-cyan-500/20 to-purple-500/20"
               hoverGradient="from-cyan-500/30 to-purple-500/30"
               delay="200"
@@ -149,7 +140,7 @@ export default function LandingPage() {
             <FeatureCard
               icon={<MessageSquare className="h-10 w-10 text-purple-400" />}
               title="AI Assistant"
-              description="Get real-time help with reading, writing, and understanding complex texts."
+              description="Obtenez une aide en temps réel pour la lecture, l'écriture et la compréhension de textes complexes."
               gradient="from-purple-500/20 to-blue-500/20"
               hoverGradient="from-purple-500/30 to-blue-500/30"
               delay="300"
@@ -157,7 +148,7 @@ export default function LandingPage() {
             <FeatureCard
               icon={<MessageCircle className="h-10 w-10 text-cyan-400" />}
               title="Chatbot"
-              description="Interact with our AI chatbot for instant support and guidance on your learning journey."
+              description="Interagissez avec notre chatbot IA pour un soutien et une guidance instantanés dans votre apprentissage."
               gradient="from-cyan-500/20 to-pink-500/20"
               hoverGradient="from-cyan-500/30 to-pink-500/30"
               delay="400"
@@ -165,7 +156,7 @@ export default function LandingPage() {
             <FeatureCard
               icon={<BrainCircuit className="h-10 w-10 text-purple-400" />}
               title="Quiz"
-              description="Practice with adaptive quizzes tailored to your specific learning needs."
+              description="Entraînez-vous avec des quiz adaptatifs conçus pour répondre à vos besoins d'apprentissage spécifiques."
               gradient="from-purple-500/20 to-cyan-500/20"
               hoverGradient="from-purple-500/30 to-cyan-500/30"
               delay="500"
@@ -174,20 +165,20 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Team Section */}
+      {/* Section de l'équipe */}
       <section id="team" className="py-20 relative">
         <div className="absolute inset-0 bg-gradient-to-b from-black/0 via-cyan-900/10 to-black/0"></div>
         <div className="container mx-auto px-4 relative">
           <div className="text-center mb-16">
             <div className="inline-flex items-center justify-center mb-4">
               <Sparkles className="h-5 w-5 text-cyan-400 mr-2" />
-              <span className="text-sm font-medium uppercase tracking-wider text-cyan-400">Meet Our Team</span>
+              <span className="text-sm font-medium uppercase tracking-wider text-cyan-400">Rencontrez Notre Équipe</span>
             </div>
             <h2 className="text-3xl md:text-5xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-purple-600">
               The AI Predators
             </h2>
             <p className="text-xl text-gray-300 max-w-3xl mx-auto">
-              Meet the talented developers behind DyslexiaCare, dedicated to empowering dyslexic readers.
+              Découvrez les développeurs talentueux derrière DyslexiaCare, dédiés à l'autonomisation des lecteurs dyslexiques.
             </p>
           </div>
           <div className="grid md:grid-cols-3 gap-8">
@@ -223,23 +214,23 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* CTA Section */}
+      {/* Section d'appel à l'action */}
       <section id="ready" className="py-20 relative">
         <div className="absolute inset-0 bg-gradient-to-r from-cyan-900/20 to-purple-900/20"></div>
         <div className="container mx-auto px-4 text-center relative">
           <div className="max-w-3xl mx-auto backdrop-blur-sm bg-white/5 p-8 md:p-12 rounded-2xl border border-white/10 shadow-2xl">
             <h2 className="text-3xl md:text-4xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-purple-400">
-              Ready to Transform Your Reading Experience?
+              Prêt à Transformer Votre Expérience de Lecture ?
             </h2>
             <p className="text-xl text-gray-300 mb-8">
-              Join thousands of users who have improved their reading and writing skills with DyslexiaCare.
+              Rejoignez des milliers d'utilisateurs qui ont amélioré leurs compétences en lecture et en écriture avec DyslexiaCare.
             </p>
             <Link href="/home">
               <Button
                 size="lg"
                 className="bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-600 hover:to-purple-700 border-0 shadow-lg shadow-purple-700/30 transition-all duration-300 hover:shadow-xl hover:shadow-purple-700/40"
               >
-                Get Started Today
+                Commencez Aujourd'hui
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
             </Link>
@@ -247,7 +238,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Footer */}
+      {/* Pied de page */}
       <footer className="bg-black/70 backdrop-blur-md border-t border-white/10 py-12">
         <div className="container mx-auto px-8">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-12">
@@ -262,40 +253,40 @@ export default function LandingPage() {
                 <div className="absolute -inset-2 bg-gradient-to-r from-cyan-400/20 to-purple-600/20 rounded-full blur-md"></div>
               </div>
               <p className="text-gray-400 text-center md:text-left">
-                Empowering dyslexic readers with AI-powered tools.
+                Autonomiser les lecteurs dyslexiques avec des outils propulsés par l'IA.
               </p>
             </div>
             <div>
-              <h3 className="text-xl font-semibold mb-6 text-white">Platform</h3>
+              <h3 className="text-xl font-semibold mb-6 text-white">Plateforme</h3>
               <ul className="space-y-3">
                 <li>
                   <Link href="#home" className="text-gray-400 hover:text-cyan-300 transition-colors duration-300">
-                    Home
+                    Accueil
                   </Link>
                 </li>
                 <li>
                   <Link href="#features" className="text-gray-400 hover:text-cyan-300 transition-colors duration-300">
-                    Features
+                    Fonctionnalités
                   </Link>
                 </li>
                 <li>
                   <Link href="#team" className="text-gray-400 hover:text-cyan-300 transition-colors duration-300">
-                    Team
+                    Équipe
                   </Link>
                 </li>
                 <li>
                   <Link href="#ready" className="text-gray-400 hover:text-cyan-300 transition-colors duration-300">
-                    Ready
+                    Prêt
                   </Link>
                 </li>
               </ul>
             </div>
             <div>
-              <h3 className="text-xl font-semibold mb-6 text-white">Company</h3>
+              <h3 className="text-xl font-semibold mb-6 text-white">Entreprise</h3>
               <ul className="space-y-3">
                 <li>
                   <Link href="#" className="text-gray-400 hover:text-cyan-300 transition-colors duration-300">
-                    About Us
+                    À Propos
                   </Link>
                 </li>
                 <li>
@@ -305,7 +296,7 @@ export default function LandingPage() {
                 </li>
                 <li>
                   <Link href="#" className="text-gray-400 hover:text-cyan-300 transition-colors duration-300">
-                    Careers
+                    Carrières
                   </Link>
                 </li>
               </ul>
@@ -315,24 +306,24 @@ export default function LandingPage() {
               <ul className="space-y-3">
                 <li>
                   <Link href="#" className="text-gray-400 hover:text-cyan-300 transition-colors duration-300">
-                    Help Center
+                    Centre d'Aide
                   </Link>
                 </li>
                 <li>
                   <Link href="#" className="text-gray-400 hover:text-cyan-300 transition-colors duration-300">
-                    Contact Us
+                    Contactez-Nous
                   </Link>
                 </li>
                 <li>
                   <Link href="#" className="text-gray-400 hover:text-cyan-300 transition-colors duration-300">
-                    Privacy Policy
+                    Politique de Confidentialité
                   </Link>
                 </li>
               </ul>
             </div>
           </div>
           <div className="border-t border-white/10 pt-8 text-center">
-            <p className="text-gray-500">© {new Date().getFullYear()} DyslexiaCare. All rights reserved.</p>
+            <p className="text-gray-500">© {new Date().getFullYear()} DyslexiaCare. Tous droits réservés.</p>
           </div>
         </div>
       </footer>
@@ -381,7 +372,7 @@ function TeamCard({ name, role, imageSrc, linkedin, github, gradient, delay, isL
         <div className="w-64 h-64 rounded-full mx-auto mb-8 overflow-hidden">
           <Image
             src={imageSrc}
-            alt={`${name}'s profile picture`}
+            alt={`Photo de profil de ${name}`}
             width={256}
             height={256}
             className="object-cover"
