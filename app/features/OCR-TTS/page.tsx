@@ -1,12 +1,11 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import Webcam from "react-webcam";
 import axios from "axios";
-import { Upload, Camera, Play, Pause, Trash, XCircle, ArrowLeft, RotateCcw, Sparkles, Image as LucideImage } from "lucide-react";
+import { Upload, Camera, Play, Pause, Trash, XCircle, ArrowLeft, RotateCcw, LucideImage, Volume2 } from "lucide-react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function OCRTTSPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -85,8 +84,6 @@ export default function OCRTTSPage() {
         language === "FR"
           ? "http://localhost:8000/convert-image-to-textFR/"
           : "http://localhost:8000/convert-image-to-textAR/";
-      console.log("Appel API OCR vers :", apiUrl);
-
       const response = await axios.post(apiUrl, formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
@@ -115,23 +112,22 @@ export default function OCRTTSPage() {
   };
 
   const handleTextToSpeech = async () => {
-    if (!extractedText || extractedText.includes("Erreur") || extractedText.includes("خطأ")) {
-      console.log("TTS bloqué : texte vide ou contient une erreur");
+    if (!extractedText || extractedText.includes("Erreur") || extractedText.includes("خطأ") || extractedText.trim() === "") {
+      setExtractedText(
+        language === "FR"
+          ? "Erreur de synthèse vocale : Aucun texte valide à convertir."
+          : "خطأ في تحويل النص إلى كلام: لا يوجد نص صالح للتحويل."
+      );
       return;
     }
 
     setIsAudioLoading(true);
     try {
+      console.log("Sending text to synthesize:", extractedText);
       const apiUrl =
         language === "FR"
           ? "http://localhost:8000/convert-text-to-speechFR/"
           : "http://localhost:8000/convert-text-to-speechAR/";
-      console.log("Appel API TTS vers :", apiUrl, "avec texte :", extractedText);
-
-      // Valider la taille du texte pour éviter une URL trop longue
-      if (encodeURIComponent(extractedText).length > 2000) {
-        throw new Error(language === "FR" ? "Texte trop long pour TTS." : "النص طويل جدًا لتحويل النص إلى كلام.");
-      }
 
       const response = await axios.post(
         `${apiUrl}?text=${encodeURIComponent(extractedText)}`,
@@ -139,77 +135,54 @@ export default function OCRTTSPage() {
         { responseType: "blob" }
       );
 
-      // Vérifier que la réponse est un Blob valide
-      if (!(response.data instanceof Blob)) {
+      if (!response.data || !(response.data instanceof Blob)) {
         throw new Error(language === "FR" ? "Réponse API invalide : pas un Blob." : "استجابة API غير صالحة: ليس Blob.");
       }
 
       const audioBlob = response.data;
-      console.log("Taille du Blob audio :", audioBlob.size);
-
       if (audioBlob.size === 0) {
         throw new Error(language === "FR" ? "Fichier audio vide." : "ملف صوتي فارغ.");
       }
 
       const audioUrl = URL.createObjectURL(audioBlob);
-      console.log("URL audio créé :", audioUrl);
       setAudioSrc(audioUrl);
-    } catch (error) {
-      console.error("Erreur TTS détaillée :", {
-        message: error.message,
-        response: error.response ? {
-          status: error.response.status,
-          data: error.response.data,
-        } : null,
-        stack: error.stack,
-      });
 
+      if (audioRef.current) {
+        audioRef.current.src = audioUrl;
+        const playAudio = () => {
+          const playPromise = audioRef.current.play();
+          if (playPromise !== undefined) {
+            playPromise
+              .then(() => setIsPlaying(true))
+              .catch((error) => {
+                console.warn("Lecture automatique bloquée, interaction requise :", error);
+                setIsPlaying(false);
+                setExtractedText(
+                  language === "FR"
+                    ? "Erreur: interaction requise pour jouer le son."
+                    : "خطأ: التفاعل مطلوب لتشغيل الصوت."
+                );
+              });
+          }
+        };
+
+        audioRef.current.addEventListener("canplay", playAudio, { once: true });
+      }
+    } catch (error) {
+      console.error("Text-to-speech error details:", error);
       const errorMessage = error.response
-        ? `Erreur ${error.response.status}: ${error.response.data.detail || error.message}`
+        ? `Erreur ${error.response.status}: ${error.response.data?.detail || error.message}`
         : `Erreur: ${error.message}`;
       setExtractedText(
         language === "FR"
           ? `Erreur de synthèse vocale : ${errorMessage}`
           : `خطأ في تحويل النص إلى كلام: ${errorMessage}`
       );
+      setAudioSrc(null);
     } finally {
       setIsAudioLoading(false);
     }
   };
-
-  useEffect(() => {
-    if (!audioSrc || !audioRef.current) {
-      console.log("useEffect TTS ignoré : audioSrc ou audioRef manquant");
-      return;
-    }
-
-    audioRef.current.src = audioSrc;
-    const playAudio = () => {
-      if (audioRef.current) {
-        console.log("Tentative de lecture audio");
-        const playPromise = audioRef.current.play();
-        if (playPromise !== undefined) {
-          playPromise
-            .then(() => {
-              console.log("Lecture audio démarrée");
-              setIsPlaying(true);
-            })
-            .catch((error) => {
-              console.warn("Erreur lecture automatique :", error);
-              setIsPlaying(false);
-            });
-        }
-      }
-    };
-
-    audioRef.current.addEventListener("loadedmetadata", playAudio, { once: true });
-
-    return () => {
-      if (audioRef.current) {
-        audioRef.current.removeEventListener("loadedmetadata", playAudio);
-      }
-    };
-  }, [audioSrc]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -256,8 +229,13 @@ export default function OCRTTSPage() {
           playPromise
             .then(() => setIsPlaying(true))
             .catch((error) => {
-              console.warn("Erreur lors de la reprise :", error);
+              console.warn("Erreur lors de la reprise de la lecture :", error);
               setIsPlaying(false);
+              setExtractedText(
+                language === "FR"
+                  ? "Erreur: impossible de jouer le son."
+                  : "خطأ: لا يمكن تشغيل الصوت."
+              );
             });
         }
       }
@@ -274,6 +252,11 @@ export default function OCRTTSPage() {
           .catch((error) => {
             console.warn("Erreur lors de la relecture :", error);
             setIsPlaying(false);
+            setExtractedText(
+              language === "FR"
+                ? "Erreur: impossible de jouer le son."
+                : "خطأ: لا يمكن تشغيل الصوت."
+            );
           });
       }
     }
@@ -312,7 +295,9 @@ export default function OCRTTSPage() {
     return words.map((word, index) => (
       <span
         key={index}
-        className={index === currentWordIndex ? "bg-cyan-400/30 px-0.5" : "px-0.5"}
+        className={`transition-colors duration-300 px-1 py-0.5 rounded-sm ${
+          index === currentWordIndex ? "bg-cyan-500/30 text-cyan-100" : "text-gray-100"
+        }`}
       >
         {word}{" "}
       </span>
@@ -320,269 +305,238 @@ export default function OCRTTSPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black text-white overflow-hidden pt-4">
-      {/* Fond animé */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 left-0 w-full h-full opacity-10">
-          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-500 rounded-full filter blur-[100px] animate-pulse"></div>
-          <div
-            className="absolute top-3/4 left-2/3 w-96 h-96 bg-indigo-500 rounded-full filter blur-[100px] animate-pulse"
-            style={{ animationDelay: "1s" }}
-          ></div>
-          <div
-            className="absolute top-1/2 left-1/2 w-96 h-96 bg-cyan-500 rounded-full filter blur-[100px] animate-pulse"
-            style={{ animationDelay: "2s" }}
-          ></div>
-        </div>
-        <div className="absolute inset-0 bg-grid-white/[0.02] bg-[length:50px_50px]"></div>
-      </div>
-
-      <main className="container mx-auto px-4 pt-4 pb-20 relative z-10">
-        <div className="text-center mb-10">
-          <div className="inline-flex items-center justify-center mb-3">
-            <Sparkles className="h-5 w-5 text-cyan-400 mr-2" />
-            <span className="text-sm font-medium uppercase tracking-wider text-cyan-400">
-              Reconnaissance d'Images
+    <div className="relative h-screen w-screen text-white flex flex-col items-center overflow-hidden">
+      <main className="relative z-10 w-full max-w-[95vw] flex flex-col items-center justify-start min-h-screen pt-16 pb-8">
+        <div className="text-center mb-6">
+          <div className="inline-flex items-center justify-center bg-indigo-900/50 px-4 py-2 rounded-full transition-all hover:bg-indigo-800/70">
+            <LucideImage className="h-5 w-5 text-cyan-400 mr-2" />
+            <span className="text-sm font-semibold uppercase tracking-widest text-cyan-300 font-inter">
+              Pour t’aider à lire, comprendre et entendre ce que tu vois – لمساعدتك على قراءة وفهم وسماع ما تراه
             </span>
+            <Volume2 className="h-5 w-5 text-cyan-400 ml-2" />
           </div>
-          <h1 className="text-4xl md:text-5xl font-bold mb-3 bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-purple-600 font-tajawal">
-            Reconnaissance d’Images | التعرف على الصور
-          </h1>
-          <p className="text-lg md:text-xl text-gray-300 max-w-3xl mx-auto">
-            {language === "AR"
-              ? "اسحب، قم بالتحميل أو استخدم الكاميرا لاستخراج النص من الصور وتحويله إلى صوت."
-              : "Déposez, téléchargez ou utilisez la caméra pour extraire le texte des images et le convertir en audio."}
-          </p>
         </div>
 
-        <Card className="bg-white/5 backdrop-blur-sm border-white/10 shadow-xl max-w-4xl mx-auto">
-          <CardHeader>
-            <CardTitle className="text-white text-2xl flex items-center font-tajawal">
-              <LucideImage className="h-6 w-6 text-cyan-400 mr-2" />
-              {language === "AR" ? "التعرف على الصور" : "Image-to-Text"}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className={`${language === "AR" ? "font-tajawal text-right" : "font-poppins"}`}>
-            {language ? (
-              <div>
-                <div className="mb-6 flex flex-col items-center">
-                  <Button
-                    onClick={handleBackToLanguageChoice}
-                    className="bg-gray-500 hover:bg-gray-600 text-white"
-                  >
-                    <ArrowLeft className="mr-2 h-5 w-5" />
-                    {language === "FR" ? "Choix de langues" : "العودة لاختيار اللغة"}
-                  </Button>
-                  {isConverted && (
-                    <div className="mt-4 flex flex-wrap justify-center gap-2">
-                      <Button
-                        onClick={handleTextToSpeech}
-                        disabled={isAudioLoading || !!audioSrc || extractedText.includes("Erreur") || extractedText.includes("خطأ")}
-                        className="bg-gradient-to-r from-green-500 to-teal-600 hover:from-green-600 hover:to-teal-700 text-white"
-                        title={language === "FR" ? "Lire le texte" : "استمع إلى النص"}
-                      >
-                        {isAudioLoading ? (
-                          <div className="flex gap-1">
-                            <div className="h-2 w-2 animate-pulse rounded-full bg-white"></div>
-                            <div className="h-2 w-2 animate-pulse rounded-full bg-white delay-100"></div>
-                            <div className="h-2 w-2 animate-pulse rounded-full bg-white delay-200"></div>
-                          </div>
-                        ) : (
-                          <span className="mr-2">(Volume)</span>
-                        )}
-                        {language === "FR" ? "Lire" : "استمع"}
-                      </Button>
-                      {audioSrc && (
-                        <>
-                          <Button
-                            onClick={handlePlayPause}
-                            className="bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white"
-                            title={language === "FR" ? "Pause/Reprendre" : "إيقاف/استئناف"}
-                          >
-                            {isPlaying ? (
-                              <Pause className="mr-2 h-5 w-5" />
-                            ) : (
-                              <Play className="mr-2 h-5 w-5" />
-                            )}
-                            {language === "FR" ? "Pause/Reprendre" : "إيقاف/استئناف"}
-                          </Button>
-                          <Button
-                            onClick={handleReplay}
-                            className="bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700 text-white"
-                            title={language === "FR" ? "Relire" : "إعادة التشغيل"}
-                          >
-                            <RotateCcw className="mr-2 h-5 w-5" />
-                            {language === "FR" ? "Relire" : "إعادة"}
-                          </Button>
-                        </>
-                      )}
-                      <Button
-                        onClick={handleClear}
-                        className="bg-gradient-to-r from-red-500 to-pink-600 hover:from-red-600 hover:to-pink-700 text-white"
-                        title={language === "FR" ? "Effacer" : "مسح"}
-                      >
-                        <Trash className="mr-2 h-5 w-5" />
-                        {language === "FR" ? "Effacer" : "مسح"}
-                      </Button>
-                    </div>
-                  )}
-                </div>
+        {language ? (
+          <div className="flex flex-col w-full min-h-[80vh] items-center justify-start pt-8">
+            <div className="mb-6 flex justify-center">
+              <Button
+                onClick={handleBackToLanguageChoice}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-full px-6 py-3 flex items-center transition-all transform hover:scale-105 shadow-lg"
+              >
+                <ArrowLeft className="mr-2 h-5 w-5" />
+                {language === "FR" ? "Choix de langues" : "العودة لاختيار اللغة"}
+              </Button>
+            </div>
 
-                {!imageCaptured && !isConverted && (
-                  <div className="flex flex-col items-center rounded-lg border-2 border-dashed border-gray-300 bg-white/10 p-6 text-center">
-                    <h4 className="text-lg font-semibold text-white">
-                      {language === "FR"
-                        ? "Déposer, télécharger ou coller une image"
-                        : "اسحب، قم بالتحميل أو ألصق صورة"}
-                    </h4>
-                    <p className="mt-2 text-gray-300">
-                      {language === "FR"
-                        ? "Formats pris en charge : JPG, PNG, PDF"
-                        : "الصيغ المدعومة: JPG, PNG, PDF"}
-                    </p>
-                    <label className="mt-4 inline-flex cursor-pointer items-center rounded-full bg-gradient-to-r from-cyan-500 to-purple-600 px-6 py-3 font-semibold text-white transition hover:from-cyan-600 hover:to-purple-700">
-                      <Upload className="mr-2 h-5 w-5" />
-                      {language === "FR" ? "Parcourir" : "استعرض"}
-                      <input
-                        type="file"
-                        className="hidden"
-                        onChange={handleFileChange}
-                        accept="image/*, application/pdf"
-                      />
-                    </label>
-                    <p className="mt-2 text-sm text-gray-400">
-                      {language === "FR"
-                        ? "*Votre vie privée est protégée ! Aucune donnée n'est transmise ou stockée."
-                        : "*حماية خصوصيتك! لا يتم نقل أو تخزين أي بيانات."}
-                    </p>
-                    <Button
-                      onClick={openCameraModal}
-                      className="mt-4 bg-gradient-to-r from-pink-500 to-red-600 hover:from-pink-600 hover:to-red-700 text-white"
-                    >
-                      <Camera className="mr-2 h-5 w-5" />
-                      {language === "FR" ? "Utiliser la caméra" : "استخدم الكاميرا"}
-                    </Button>
-                  </div>
-                )}
-
-                {imageCaptured && !isConverted && (
-                  <div className="text-center">
-                    <div className="relative mx-auto h-64 w-full max-w-md overflow-hidden rounded-lg shadow-md">
-                      <Image
-                        src={imageCaptured}
-                        alt="Aperçu"
-                        fill
-                        className="rounded-lg object-contain"
-                      />
-                    </div>
-                    <p className="mt-2 text-gray-300">{selectedFile?.name}</p>
-                    <div className="mt-4 flex justify-center gap-4">
-                      <Button
-                        onClick={handleStartClick}
-                        disabled={isConverting}
-                        className="bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-600 hover:to-purple-700 text-white"
-                      >
-                        {isConverting ? (
-                          <div className="flex gap-1">
-                            <div className="h-2 w-2 animate-pulse rounded-full bg-white"></div>
-                            <div className="h-2 w-2 animate-pulse rounded-full bg-white delay-100"></div>
-                            <div className="h-2 w-2 animate-pulse rounded-full bg-white delay-200"></div>
-                          </div>
-                        ) : (
-                          language === "FR" ? "Convertir" : "تحويل"
-                        )}
-                      </Button>
-                      <Button
-                        onClick={() => {
-                          setSelectedFile(null);
-                          setImageCaptured(null);
-                        }}
-                        className="bg-gradient-to-r from-yellow-500 to-orange-600 hover:from-yellow-600 hover:to-orange-700 text-white"
-                      >
-                        <XCircle className="mr-2 h-5 w-5" />
-                        {language === "FR" ? "Annuler" : "إلغاء"}
-                      </Button>
-                    </div>
-                  </div>
-                )}
-
-                {isConverted && (
-                  <div className="mt-6 rounded-lg bg-white/10 p-4 text-center">
-                    <h5 className="mb-2 font-semibold text-white">
-                      {language === "FR" ? "Texte extrait :" : "النص المستخرج :"}
-                    </h5>
-                    <p
-                      className={`text-base leading-relaxed text-gray-200 sm:text-lg ${language === "AR" ? "text-right" : "text-left"}`}
-                      style={{ fontFamily: language === "AR" ? "Tajawal, sans-serif" : "Poppins, sans-serif" }}
-                    >
-                      {renderHighlightedText()}
-                    </p>
-                  </div>
-                )}
+            {!imageCaptured && !isConverted && (
+              <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-indigo-400/50 bg-indigo-900/30 p-10 text-center w-full max-w-[90vw] shadow-xl transition-all hover:shadow-2xl">
+                <h4 className="text-2xl font-semibold text-white mb-3 font-tajawal">
+                  {language === "FR"
+                    ? "Téléchargez ou capturez une image"
+                    : "قم بالتحميل أو التقاط صورة"}
+                </h4>
+                <p className="text-sm text-gray-400 mb-6 font-inter">
+                  {language === "FR"
+                    ? "Formats pris en charge : JPG, PNG, PDF"
+                    : "الصيغ المدعومة: JPG, PNG, PDF"}
+                </p>
+                <label className="inline-flex cursor-pointer items-center rounded-full bg-gradient-to-r from-cyan-400 to-purple-500 px-8 py-4 font-semibold text-white hover:from-cyan-500 hover:to-purple-600 transition-all transform hover:scale-105 shadow-md">
+                  <Upload className="mr-3 h-6 w-6" />
+                  {language === "FR" ? "Parcourir" : "استعرض"}
+                  <input
+                    type="file"
+                    className="hidden"
+                    onChange={handleFileChange}
+                    accept="image/*, application/pdf"
+                  />
+                </label>
+                <Button
+                  onClick={openCameraModal}
+                  className="mt-6 rounded-full bg-gradient-to-r from-pink-400 to-red-500 hover:from-pink-500 hover:to-red-600 text-white px-8 py-4 transition-all transform hover:scale-105 shadow-md"
+                >
+                  <Camera className="mr-3 h-6 w-6" />
+                  {language === "FR" ? "Utiliser la caméra" : "استخدم الكاميرا"}
+                </Button>
+                <p className="mt-6 text-xs text-gray-500 font-inter">
+                  {language === "FR"
+                    ? "*Votre vie privée est protégée ! Aucune donnée n'est transmise ou stockée."
+                    : "*حماية خصوصيتك! لا يتم نقل أو تخزين أي بيانات."}
+                </p>
               </div>
-            ) : (
-              <div className="text-center">
-                <div className="flex flex-col gap-4 sm:flex-row sm:justify-center">
+            )}
+
+            {imageCaptured && !isConverted && (
+              <div className="text-center w-full max-w-[90vw]">
+                <div className="relative mx-auto h-72 w-full max-w-lg overflow-hidden rounded-2xl shadow-lg">
+                  <Image
+                    src={imageCaptured}
+                    alt="Aperçu"
+                    fill
+                    className="rounded-2xl object-contain"
+                  />
+                </div>
+                <p className="mt-4 text-gray-400 font-inter text-lg">{selectedFile?.name}</p>
+                <div className="mt-6 flex justify-center gap-6">
                   <Button
-                    onClick={() => handleLanguageSelect("FR")}
-                    className="w-full sm:w-48 bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-600 hover:to-purple-700 text-white"
+                    onClick={handleStartClick}
+                    disabled={isConverting}
+                    className="rounded-full bg-gradient-to-r from-cyan-400 to-purple-500 hover:from-cyan-500 hover:to-purple-600 text-white px-8 py-4 transition-all transform hover:scale-105 shadow-md"
                   >
-                    Français
+                    {isConverting ? (
+                      <div className="flex gap-2">
+                        <div className="h-3 w-3 animate-pulse rounded-full bg-white"></div>
+                        <div className="h-3 w-3 animate-pulse rounded-full bg-white delay-100"></div>
+                        <div className="h-3 w-3 animate-pulse rounded-full bg-white delay-200"></div>
+                      </div>
+                    ) : (
+                      language === "FR" ? "Convertir" : "تحويل"
+                    )}
                   </Button>
                   <Button
-                    onClick={() => handleLanguageSelect("AR")}
-                    className="w-full sm:w-48 bg-gradient-to-r from-green-500 to-teal-600 hover:from-green-600 hover:to-teal-700 text-white font-tajawal"
+                    onClick={() => {
+                      setSelectedFile(null);
+                      setImageCaptured(null);
+                    }}
+                    className="rounded-full bg-gradient-to-r from-yellow-400 to-orange-500 hover:from-yellow-500 hover:to-orange-600 text-white px-8 py-4 transition-all transform hover:scale-105 shadow-md"
                   >
-                    العربية
+                    <XCircle className="mr-3 h-6 w-6" />
+                    {language === "FR" ? "Annuler" : "إلغاء"}
                   </Button>
                 </div>
               </div>
             )}
-          </CardContent>
-        </Card>
+
+            {isConverted && (
+              <div className="flex flex-col items-center gap-6 w-full max-w-[90vw]">
+                <div className="flex flex-wrap justify-center gap-4">
+                  <Button
+                    onClick={handleTextToSpeech}
+                    disabled={isAudioLoading || !!audioSrc || extractedText.includes("Erreur") || extractedText.includes("خطأ")}
+                    className="rounded-full bg-gradient-to-r from-green-400 to-teal-500 hover:from-green-500 hover:to-teal-600 text-white px-6 py-3 transition-all transform hover:scale-105 shadow-md"
+                  >
+                    {isAudioLoading ? (
+                      <div className="flex gap-2">
+                        <div className="h-3 w-3 animate-pulse rounded-full bg-white"></div>
+                        <div className="h-3 w-3 animate-pulse rounded-full bg-white delay-100"></div>
+                        <div className="h-3 w-3 animate-pulse rounded-full bg-white delay-200"></div>
+                      </div>
+                    ) : (
+                      <>
+                        <Play className="mr-2 h-5 w-5" />
+                        {language === "FR" ? "Lire" : "استمع"}
+                      </>
+                    )}
+                  </Button>
+                  {audioSrc && (
+                    <>
+                      <Button
+                        onClick={handlePlayPause}
+                        className="rounded-full bg-gradient-to-r from-purple-400 to-indigo-500 hover:from-purple-500 hover:to-indigo-600 text-white px-6 py-3 transition-all transform hover:scale-105 shadow-md"
+                      >
+                        {isPlaying ? (
+                          <Pause className="mr-2 h-5 w-5" />
+                        ) : (
+                          <Play className="mr-2 h-5 w-5" />
+                        )}
+                        {language === "FR" ? "Pause/Reprendre" : "إيقاف/استئناف"}
+                      </Button>
+                      <Button
+                        onClick={handleReplay}
+                        className="rounded-full bg-gradient-to-r from-blue-400 to-cyan-500 hover:from-blue-500 hover:to-cyan-600 text-white px-6 py-3 transition-all transform hover:scale-105 shadow-md"
+                      >
+                        <RotateCcw className="mr-2 h-5 w-5" />
+                        {language === "FR" ? "Relire" : "إعادة"}
+                      </Button>
+                    </>
+                  )}
+                  <Button
+                    onClick={handleClear}
+                    className="rounded-full bg-gradient-to-r from-red-400 to-pink-500 hover:from-red-500 hover:to-pink-600 text-white px-6 py-3 transition-all transform hover:scale-105 shadow-md"
+                  >
+                    <Trash className="mr-2 h-5 w-5" />
+                    {language === "FR" ? "Effacer" : "مسح"}
+                  </Button>
+                </div>
+
+                <div className="w-full rounded-2xl bg-indigo-900/50 p-8 text-center shadow-xl transition-all hover:shadow-2xl">
+                  <h5 className="mb-4 font-semibold text-xl text-cyan-300 font-tajawal">
+                    {language === "FR" ? "Texte extrait :" : "النص المستخرج :"}
+                  </h5>
+                  <div className="max-h-48 overflow-y-auto text-lg leading-relaxed text-gray-100 sm:text-xl p-6 bg-black/30 rounded-xl font-inter">
+                    {renderHighlightedText()}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-start w-full min-h-[80vh] gap-8 pt-8">
+            <div className="text-center">
+              <h1 className="text-5xl md:text-6xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 font-tajawal leading-tight flex items-center justify-center mb-8">
+                Reconnaissance d’Images | التعرف على الصور
+              </h1>
+              <p className="text-lg text-gray-300 font-inter mb-10 max-w-[90vw] mx-auto">
+                DÉPOSER, TÉLÉCHARGER OU COLLER L'IMAGE | استمتع بالتحميل او النسخ او اللصق
+              </p>
+              <div className="flex flex-col sm:flex-row gap-8 justify-center">
+                <Button
+                  onClick={() => handleLanguageSelect("FR")}
+                  className="w-52 rounded-full bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-500 hover:to-blue-600 text-white px-8 py-4 text-lg transition-all transform hover:scale-105 shadow-md font-inter"
+                >
+                  Français
+                </Button>
+                <Button
+                  onClick={() => handleLanguageSelect("AR")}
+                  className="w-52 rounded-full bg-gradient-to-r from-green-400 to-teal-500 hover:from-green-500 hover:to-teal-600 text-white px-8 py-4 text-lg font-tajawal transition-all transform hover:scale-105 shadow-md"
+                >
+                  العربية
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
 
       {modalIsOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
-          <Card className="relative w-full max-w-2xl bg-white/10 backdrop-blur-sm border-white/10">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
+          <div className="relative w-full max-w-3xl bg-indigo-950/80 backdrop-blur-lg border border-indigo-500/30 rounded-2xl shadow-2xl">
             <Button
               onClick={closeCameraModal}
-              className="absolute right-4 top-4 bg-transparent text-gray-300 hover:text-white"
+              className="absolute right-4 top-4 bg-transparent text-gray-300 hover:text-white transition-all"
             >
-              <XCircle className="h-6 w-6" />
+              <XCircle className="h-8 w-8" />
             </Button>
-            <CardHeader>
-              <CardTitle className="text-white text-center">
-                <Camera className="inline-block mr-2 h-6 w-6 text-cyan-400" />
+            <div className="p-8">
+              <h3 className="text-white text-center text-2xl font-tajawal mb-6">
+                <Camera className="inline-block mr-3 h-8 w-8 text-cyan-400" />
                 {language === "FR" ? "Capturez votre image" : "التقط صورتك"}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
+              </h3>
               <Webcam
                 audio={false}
                 ref={webcamRef}
                 screenshotFormat="image/png"
-                className="w-full rounded-lg shadow-md"
+                className="w-full rounded-2xl shadow-md"
                 videoConstraints={videoConstraints}
               />
-              <div className="mt-4 flex justify-center gap-4">
+              <div className="mt-6 flex justify-center gap-6">
                 <Button
                   onClick={handleCaptureImage}
-                  className="bg-gradient-to-r from-green-500 to-teal-600 hover:from-green-600 hover:to-teal-700 text-white"
+                  className="rounded-full bg-gradient-to-r from-green-400 to-teal-500 hover:from-green-500 hover:to-teal-600 text-white px-8 py-4 transition-all transform hover:scale-105 shadow-md"
                 >
-                  <Camera className="mr-2 h-5 w-5" />
+                  <Camera className="mr-3 h-6 w-6" />
                   {language === "FR" ? "Prendre une photo" : "التقط صورة"}
                 </Button>
                 <Button
                   onClick={closeCameraModal}
-                  className="bg-gradient-to-r from-red-500 to-pink-600 hover:from-red-600 hover:to-pink-700 text-white"
+                  className="rounded-full bg-gradient-to-r from-red-400 to-pink-500 hover:from-red-500 hover:to-pink-600 text-white px-8 py-4 transition-all transform hover:scale-105 shadow-md"
                 >
-                  <XCircle className="mr-2 h-5 w-5" />
+                  <XCircle className="mr-3 h-6 w-6" />
                   {language === "FR" ? "Annuler" : "إلغاء"}
                 </Button>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </div>
       )}
 
@@ -593,6 +547,42 @@ export default function OCRTTSPage() {
           setCurrentWordIndex(-1);
         }}
       />
+
+      {/* Styles globaux pour appliquer le fond à toute la page */}
+      <style jsx global>{`
+        html, body {
+          margin: 0;
+          padding: 0;
+          height: 100%;
+          width: 100%;
+          overflow: hidden;
+          position: relative;
+          background: linear-gradient(to bottom right, #111827, #1e1b4b, #000000);
+        }
+        body::before {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(to right, rgba(6, 182, 212, 0.1), rgba(168, 85, 247, 0.1));
+          opacity: 0.3;
+          animation: pulse 5s infinite;
+          pointer-events: none;
+        }
+        body::after {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background-image: linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+                            linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+          background-size: 40px 40px;
+          pointer-events: none;
+        }
+        @keyframes pulse {
+          0% { opacity: 0.3; }
+          50% { opacity: 0.5; }
+          100% { opacity: 0.3; }
+        }
+      `}</style>
     </div>
   );
 }
