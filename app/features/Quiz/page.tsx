@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Play, Pause, ArrowLeft, ArrowRightCircle, RefreshCw, Volume2, Trophy, Star, XCircle, Clock } from "lucide-react";
+import { Play, Pause, ArrowLeft, ArrowRightCircle, RefreshCw, Headphones, Trophy, Star, XCircle, Clock, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -30,13 +30,16 @@ export default function QuizPage() {
   const [apiFeedback, setApiFeedback] = useState("");
   const [displayedApiFeedback, setDisplayedApiFeedback] = useState("");
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isFeedbackAudioPlaying, setIsFeedbackAudioPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [treasures, setTreasures] = useState(0);
   const [availableQuestions, setAvailableQuestions] = useState([]);
   const [quizCompleted, setQuizCompleted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [feedbackAudioURL, setFeedbackAudioURL] = useState(null);
   const audioRef = useRef(null);
+  const feedbackAudioRef = useRef(null);
   const winAudioRef = useRef(null);
   const loseAudioRef = useRef(null);
 
@@ -62,6 +65,7 @@ export default function QuizPage() {
 
   const currentQuestion = availableQuestions[currentQuestionIndex];
 
+  // Audio for question playback
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || !currentQuestion) return;
@@ -101,6 +105,41 @@ export default function QuizPage() {
       audio.removeEventListener("error", handleError);
     };
   }, [currentQuestion, language]);
+
+  // Audio for feedback playback
+  useEffect(() => {
+    if (feedbackAudioURL) {
+      console.log("Démarrage lecture audio feedback :", feedbackAudioURL);
+      feedbackAudioRef.current = new Audio(feedbackAudioURL);
+      feedbackAudioRef.current
+        .play()
+        .then(() => setIsFeedbackAudioPlaying(true))
+        .catch((error) => {
+          console.warn("Erreur lecture audio feedback :", error);
+          setIsFeedbackAudioPlaying(false);
+          setFeedback(
+            language === "french"
+              ? "Erreur : interaction requise pour jouer le son."
+              : "خطأ: التفاعل مطلوب لتشغيل الصوت."
+          );
+        });
+
+      feedbackAudioRef.current.addEventListener("ended", () => {
+        setIsFeedbackAudioPlaying(false);
+      });
+
+      return () => {
+        if (feedbackAudioRef.current) {
+          feedbackAudioRef.current.pause();
+          feedbackAudioRef.current = null;
+        }
+        if (feedbackAudioURL) {
+          URL.revokeObjectURL(feedbackAudioURL);
+          setFeedbackAudioURL(null);
+        }
+      };
+    }
+  }, [feedbackAudioURL, language]);
 
   const launchConfetti = () => {
     confetti({
@@ -150,8 +189,10 @@ export default function QuizPage() {
     setFeedback("");
     setApiFeedback("");
     setDisplayedApiFeedback("");
+    setFeedbackAudioURL(null);
     setTreasures(0);
     setIsPlaying(false);
+    setIsFeedbackAudioPlaying(false);
     setCurrentTime(0);
     setDuration(0);
     setQuizCompleted(false);
@@ -168,6 +209,28 @@ export default function QuizPage() {
           setIsPlaying(false);
           setFeedback(language === "french" ? "Erreur : impossible de jouer l'audio." : "خطأ: لا يمكن تشغيل الصوت.");
         });
+      }
+    }
+  };
+
+  const handleFeedbackAudioPlayPause = () => {
+    if (feedbackAudioRef.current) {
+      if (isFeedbackAudioPlaying) {
+        feedbackAudioRef.current.pause();
+        setIsFeedbackAudioPlaying(false);
+      } else {
+        feedbackAudioRef.current
+          .play()
+          .then(() => setIsFeedbackAudioPlaying(true))
+          .catch((error) => {
+            console.warn("Erreur lecture audio feedback :", error);
+            setIsFeedbackAudioPlaying(false);
+            setFeedback(
+              language === "french"
+                ? "Erreur : impossible de jouer le son."
+                : "خطأ: لا يمكن تشغيل الصوت."
+            );
+          });
       }
     }
   };
@@ -207,29 +270,65 @@ export default function QuizPage() {
         method: "POST",
         body: formData,
       });
-      const data = await response.json();
-      console.log("Réponse brute de l'API :", data);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Erreur API feedback : ${response.status} - ${errorText}`);
+      }
 
+      const data = await response.json();
+      console.log("Réponse brute de l'API feedback :", data);
+
+      let cleanFeedback = "";
       if (data.feedback && typeof data.feedback === "string") {
-        const cleanFeedback = data.feedback
+        cleanFeedback = data.feedback
           .trim()
           .replace(/undefined/gi, "")
           .replace(/\s+/g, " ")
           .replace(/(\.\s*)+$/, ".");
         setApiFeedback(cleanFeedback || (language === "french" ? "Feedback indisponible." : "الملاحظات غير متوفرة."));
       } else {
-        setApiFeedback(
+        throw new Error(
           language === "french"
-            ? "Désolé, je n'ai pas pu générer de feedback."
-            : "عذرًا، لم أتمكن من إنشاء ملاحظات."
+            ? "La réponse de l'API feedback ne contient pas de feedback valide."
+            : "استجابة API الملاحظات لا تحتوي على ملاحظات صحيحة."
         );
       }
+
+      // Convert feedback to speech
+      if (cleanFeedback && cleanFeedback !== "Feedback indisponible." && cleanFeedback !== "الملاحظات غير متوفرة.") {
+        const ttsUrl = language === "french"
+          ? `http://localhost:8000/convert-text-to-speechFR/?text=${encodeURIComponent(cleanFeedback)}`
+          : `http://localhost:8000/convert-text-to-speechAR/?text=${encodeURIComponent(cleanFeedback)}`;
+
+        console.log("Envoi de la requête au backend pour la synthèse vocale :", ttsUrl);
+        const ttsResponse = await fetch(ttsUrl, {
+          method: "POST",
+        });
+
+        if (!ttsResponse.ok) {
+          const errorText = await ttsResponse.text();
+          console.error("Erreur API text-to-speech :", ttsResponse.status, errorText);
+          return;
+        }
+
+        const audioBlob = await ttsResponse.blob();
+        if (audioBlob.size === 0) {
+          throw new Error(
+            language === "french"
+              ? "Fichier audio vide reçu."
+              : "تم استلام ملف صوتي فارغ."
+          );
+        }
+
+        const audioUrl = URL.createObjectURL(audioBlob);
+        setFeedbackAudioURL(audioUrl);
+      }
     } catch (error) {
-      console.error("Erreur lors de l'appel à l'API :", error);
+      console.error("Erreur dans handleAnswerSelect :", error);
       setApiFeedback(
         language === "french"
-          ? "Erreur lors de la génération du feedback."
-          : "خطأ أثناء إنشاء الملاحظات."
+          ? `Erreur : ${error.message || "Erreur lors de la génération du feedback."}`
+          : `خطأ: ${error.message || "خطأ أثناء إنشاء الملاحظات."}`
       );
     }
   };
@@ -243,7 +342,9 @@ export default function QuizPage() {
       setFeedback("");
       setApiFeedback("");
       setDisplayedApiFeedback("");
+      setFeedbackAudioURL(null);
       setIsPlaying(false);
+      setIsFeedbackAudioPlaying(false);
       setCurrentTime(0);
       setDuration(0);
     }
@@ -254,7 +355,9 @@ export default function QuizPage() {
     setFeedback("");
     setApiFeedback("");
     setDisplayedApiFeedback("");
+    setFeedbackAudioURL(null);
     setIsPlaying(false);
+    setIsFeedbackAudioPlaying(false);
     setCurrentTime(0);
   };
 
@@ -265,9 +368,11 @@ export default function QuizPage() {
     setFeedback("");
     setApiFeedback("");
     setDisplayedApiFeedback("");
+    setFeedbackAudioURL(null);
     setTreasures(0);
     setAvailableQuestions([]);
     setIsPlaying(false);
+    setIsFeedbackAudioPlaying(false);
     setCurrentTime(0);
     setDuration(0);
     setQuizCompleted(false);
@@ -282,20 +387,24 @@ export default function QuizPage() {
     setFeedback("");
     setApiFeedback("");
     setDisplayedApiFeedback("");
+    setFeedbackAudioURL(null);
     setTreasures(0);
     setIsPlaying(false);
+    setIsFeedbackAudioPlaying(false);
     setCurrentTime(0);
     setDuration(0);
     setQuizCompleted(false);
     setTimeout(() => setIsLoading(false), 500);
   };
 
+  const isFeedbackCorrect = feedback.includes("Bravo") || feedback.includes("أحسنت");
+
   return (
     <div className="relative h-screen w-screen text-white flex flex-col items-center overflow-hidden">
       {/* Badge en haut */}
       <div className="relative z-10 w-full max-w-7xl text-center pt-2">
         <div className="inline-flex items-center justify-center bg-indigo-900/50 px-4 py-2 rounded-full transition-all hover:bg-indigo-800/70">
-          <Volume2 className="h-5 w-5 text-cyan-300 mr-2" />
+          <Headphones className="h-5 w-5 text-cyan-300 mr-2" />
           <span className="text-sm font-semibold uppercase tracking-widest text-cyan-300 font-arial">
             {language === "french" || !language
               ? "Écoutez et apprenez avec notre quiz audio – استمع وتعلم مع اختبارنا الصوتي"
@@ -307,7 +416,6 @@ export default function QuizPage() {
         {language && (
           <div className="mt-12 flex justify-center">
             <Card className="relative w-full max-w-6xl h-[520px] bg-gradient-to-br from-gray-900 via-indigo-950 to-black border border-indigo-500/50 rounded-xl shadow-lg overflow-hidden">
-              {/* Superposition pour la grille et l'effet de pulsation */}
               <div className="absolute inset-0 pointer-events-none">
                 <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/10 to-purple-500/10 opacity-30 animate-pulse"></div>
                 <div className="absolute inset-0 bg-grid-white/[0.03] bg-[length:40px_40px]"></div>
@@ -327,7 +435,7 @@ export default function QuizPage() {
                     <div className="flex justify-center gap-4">
                       <Button
                         onClick={handleBackToLanguageChoice}
-                        className="bg-teal-600 hover:bg-teal-700 text-white text-lg font-arial py-2 px-4 rounded-lg"
+                        className="bg-[#A5158C] hover:bg-[#410445] text-white font-arial py-2 px-4 rounded-lg"
                       >
                         {language === "french" ? "Choix de langue" : "اختيار اللغة"}
                         <ArrowLeft className="ml-2 h-5 w-5" />
@@ -352,7 +460,7 @@ export default function QuizPage() {
                     <div className="flex justify-between items-center">
                       <Button
                         onClick={handleBackToLanguageChoice}
-                        className="bg-teal-600 hover:bg-teal-700 text-white font-arial py-2 px-4 rounded-lg"
+                        className="bg-[#A5158C] hover:bg-[#410445] text-white font-arial py-2 px-4 rounded-lg"
                       >
                         <ArrowLeft className="mr-2 h-5 w-5" />
                         {language === "french" ? "Choix de langues" : "العودة لاختيار اللغة"}
@@ -417,40 +525,95 @@ export default function QuizPage() {
                     )}
 
                     {feedback && currentQuestion && (
-                      <div className={`py-6 px-4 rounded-lg my-3 min-h-[120px] ${
-                        feedback.includes("Bravo") || feedback.includes("أحسنت")
-                          ? "bg-teal-600/20"
-                          : "bg-red-600/20"
-                      }`}>
-                        <div className={`flex ${language === "french" ? "flex-row" : "flex-row-reverse"} items-center justify-between gap-4`}>
-                          <div className={`flex flex-col ${language === "french" ? "items-start" : "items-end"} gap-2`}>
-                            <div className={`flex ${language === "french" ? "flex-row" : "flex-row-reverse"} items-center gap-2`}>
+                      <div
+                        className={`py-6 px-4 rounded-lg my-3 min-h-[120px] ${
+                          feedback.includes("Bravo") || feedback.includes("أحسنت")
+                            ? "bg-teal-600/20"
+                            : "bg-red-600/20"
+                        }`}
+                      >
+                        <div
+                          className={`flex ${language === "french" ? "flex-row" : "flex-row-reverse"} items-center justify-between gap-4`}
+                        >
+                          <div
+                            className={`flex flex-col ${language === "french" ? "items-start" : "items-end"} gap-2`}
+                          >
+                            <div
+                              className={`flex ${language === "french" ? "flex-row" : "flex-row-reverse"} items-center gap-2`}
+                            >
                               {feedback.includes("Bravo") || feedback.includes("أحسنت") ? (
                                 <Star className="h-8 w-8 text-teal-400" />
                               ) : (
                                 <XCircle className="h-8 w-8 text-red-400" />
                               )}
-                              <p className={`text-2xl font-bold text-gray-200 font-arial ${language === "french" ? "text-left" : "text-right"}`}>
+                              <p
+                                className={`text-2xl font-bold text-gray-200 font-arial ${language === "french" ? "text-left" : "text-right"}`}
+                              >
                                 <span>{language === "french" ? "Ta réponse :" : "إجابتك :"}</span>
                                 <span className="ml-1">{currentQuestion.choices[selectedAnswer]}</span>
                               </p>
                             </div>
-                            <p className={`text-2xl font-bold text-white font-arial ${language === "french" ? "text-left" : "text-right"}`}>
+                            <p
+                              className={`text-2xl font-bold text-white font-arial ${language === "french" ? "text-left" : "text-right"}`}
+                            >
                               {feedback}
                             </p>
                           </div>
-                          <div className={`message-container ${language === "french" ? "flex-row" : "flex-row-reverse"}`}>
+                          <div
+                            className={`message-container ${language === "french" ? "flex-row" : "flex-row-reverse"}`}
+                          >
                             <div className="profile-pic">
                               <img src="/img/robot.png" alt="Robot Profile" className="w-full h-full object-cover" />
                             </div>
                             <div className="message-bubble">
-                              <p className={`text-xl text-gray-200 font-mono typewriter ${language === "french" ? "text-left" : "text-right"}`}>
+                              <p
+                                className={`text-xl text-gray-200 font-mono typewriter ${language === "french" ? "text-left" : "text-right"}`}
+                              >
                                 {displayedApiFeedback}
                               </p>
                             </div>
                           </div>
                         </div>
-                        <div className="flex justify-center gap-3 mt-2">
+                        <div className="flex justify-center gap-3 mt-4">
+                          {apiFeedback && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    onClick={handleFeedbackAudioPlayPause}
+                                    disabled={!feedbackAudioURL}
+                                    className={`bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-600 hover:to-purple-700 shadow-lg shadow-purple-700/30 transition-all duration-300 hover:shadow-xl hover:shadow-purple-700/40 text-white text-lg font-arial py-2 px-4 rounded-lg ${
+                                      !feedbackAudioURL ? "opacity-50 cursor-not-allowed" : ""
+                                    }`}
+                                  >
+                                    {isFeedbackAudioPlaying ? (
+                                      <Pause className="mr-2 h-5 w-5" />
+                                    ) : (
+                                      <Play className="mr-2 h-5 w-5" />
+                                    )}
+                                    {isFeedbackAudioPlaying
+                                      ? language === "french"
+                                        ? "Arrêter la lecture"
+                                        : "إيقاف التشغيل"
+                                      : language === "french"
+                                      ? "Lire Feedback"
+                                      : "تشغيل الملاحظات"}
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>
+                                    {language === "french"
+                                      ? feedbackAudioURL
+                                        ? "Lire ou mettre en pause le feedback audio"
+                                        : "Chargement de l'audio..."
+                                      : feedbackAudioURL
+                                      ? "تشغيل أو إيقاف الصوت للملاحظات"
+                                      : "جاري تحميل الصوت..."}
+                                  </p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
                           {feedback.includes("Bravo") || feedback.includes("أحسنت") ? (
                             <Button
                               onClick={handleNextQuestion}
@@ -463,7 +626,7 @@ export default function QuizPage() {
                             <>
                               <Button
                                 onClick={handleRetry}
-                                className="bg-yellow-600 hover:bg-yellow-700 text-white text-lg font-arial py-2 px-4 rounded-lg"
+                                className="bg-orange-600 hover:bg-orange-700 text-white text-lg font-arial py-2 px-4 rounded-lg"
                               >
                                 {language === "french" ? "Réessayer" : "إعادة المحاولة"}
                                 <RefreshCw className="ml-2 h-5 w-5" />
@@ -494,7 +657,6 @@ export default function QuizPage() {
           <div className="flex flex-col items-center justify-start w-full min-h-[80vh] gap-8 pt-8">
             <div className="text-center">
               <h1 className="text-5xl md:text-6xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 font-tajawal leading-tight flex items-center justify-center mb-8">
-                <Volume2 className="h-10 w-10 text-pink-400 mr-2" />
                 Quiz Audio | اختبار صوتي
               </h1>
               <p className="text-lg text-gray-300 font-inter mb-10 max-w-[90vw] mx-auto">

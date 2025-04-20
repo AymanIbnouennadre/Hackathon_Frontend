@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { Mic, Play, Pause, CheckCircle, XCircle, ArrowLeft, ArrowRightCircle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 export default function SpeechToTextPage() {
   const frenchWords = [
@@ -14,10 +15,10 @@ export default function SpeechToTextPage() {
   ];
 
   const arabicWords = [
-    "مدرسة", "مقص", "سبورة", "حقيبة", "طاولة", "نافذة", "هاتف", "قطة",
-    "سيارة", "قطار", "جمل", "سمكة", "زهرة", "عصفور", "خبز", "بيضة",
-    "موزة", "نظارات", "مفتاح", "كرسي", "حصان", "أرنب", "مظلة", "كتاب",
-    "كرة", "طائرة", "ساعة", "سكين", "حذاء", "فرشاة"
+    "مدرسه", "مقص", "سبوره", "حقيبه", "طاوله", "نافذه", "هاتف", "قطه",
+    "سياره", "قطار", "جمل", "سمكه", "زهره", "عصفور", "خبز", "بيضه",
+    "موزه", "نظارات", "مفتاح", "كرسي", "حصان", "أرنب", "مظله", "كتاب",
+    "كره", "طائره", "ساعه", "سكين", "حذاء", "فرشاه"
   ];
 
   const [language, setLanguage] = useState(null);
@@ -29,17 +30,23 @@ export default function SpeechToTextPage() {
   const [feedback, setFeedback] = useState("");
   const [apiFeedback, setApiFeedback] = useState("");
   const [displayedApiFeedback, setDisplayedApiFeedback] = useState("");
+  const [feedbackAudioURL, setFeedbackAudioURL] = useState(null);
   const [isRecording, setIsRecording] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isFeedbackAudioPlaying, setIsFeedbackAudioPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);
   const [isFinished, setIsFinished] = useState(false);
+  const [isTranscribed, setIsTranscribed] = useState(false);
+  const [isFeedbackReady, setIsFeedbackReady] = useState(false);
   const mediaRecorder = useRef(null);
   const audioRef = useRef(null);
+  const feedbackAudioRef = useRef(null);
   const timerRef = useRef(null);
+  const recognitionRef = useRef(null);
 
   useEffect(() => {
     if (isRecording) {
@@ -83,7 +90,7 @@ export default function SpeechToTextPage() {
   }, [audioURL]);
 
   useEffect(() => {
-    if (apiFeedback) {
+    if (apiFeedback && isFeedbackReady) {
       setDisplayedApiFeedback("");
       const cleanedFeedback = apiFeedback.replace(/\n/g, " ");
       let index = 0;
@@ -101,7 +108,54 @@ export default function SpeechToTextPage() {
 
       return () => clearInterval(interval);
     }
-  }, [apiFeedback]);
+  }, [apiFeedback, isFeedbackReady]);
+
+  useEffect(() => {
+    if (feedbackAudioURL && isFeedbackReady) {
+      console.log("Démarrage lecture audio :", feedbackAudioURL);
+      feedbackAudioRef.current = new Audio(feedbackAudioURL);
+      feedbackAudioRef.current
+        .play()
+        .then(() => setIsFeedbackAudioPlaying(true))
+        .catch((error) => {
+          console.warn("Erreur lecture audio feedback :", error);
+          setIsFeedbackAudioPlaying(false);
+          setFeedback(
+            language === "french"
+              ? "Erreur : interaction requise pour jouer le son."
+              : "خطأ: التفاعل مطلوب لتشغيل الصوت."
+          );
+        });
+
+      feedbackAudioRef.current.addEventListener("ended", () => {
+        setIsFeedbackAudioPlaying(false);
+      });
+
+      return () => {
+        if (feedbackAudioRef.current) {
+          feedbackAudioRef.current.pause();
+          feedbackAudioRef.current = null;
+        }
+        if (feedbackAudioURL) {
+          URL.revokeObjectURL(feedbackAudioURL);
+          setFeedbackAudioURL(null);
+        }
+      };
+    }
+  }, [feedbackAudioURL, isFeedbackReady, language]);
+
+  useEffect(() => {
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+        recognitionRef.current = null;
+      }
+      if (mediaRecorder.current) {
+        mediaRecorder.current.stop();
+        mediaRecorder.current = null;
+      }
+    };
+  }, []);
 
   const selectLanguage = (lang) => {
     setLanguage(lang);
@@ -109,12 +163,16 @@ export default function SpeechToTextPage() {
     setFeedback("");
     setApiFeedback("");
     setDisplayedApiFeedback("");
+    setFeedbackAudioURL(null);
     setRecordedAudio(null);
     setAudioURL(null);
     setIsLoading(false);
     setCorrectCount(0);
     setUsedWords([]);
     setIsFinished(false);
+    setIsTranscribed(false);
+    setIsFeedbackReady(false);
+    setIsFeedbackAudioPlaying(false);
 
     const words = lang === "french" ? frenchWords : arabicWords;
     const randomWord = words[Math.floor(Math.random() * words.length)];
@@ -125,6 +183,15 @@ export default function SpeechToTextPage() {
   const startRecording = async () => {
     try {
       setIsRecording(true);
+      setTranscribedText("");
+      setIsTranscribed(false);
+      setFeedback("");
+      setApiFeedback("");
+      setDisplayedApiFeedback("");
+      setFeedbackAudioURL(null);
+      setIsFeedbackReady(false);
+      setIsFeedbackAudioPlaying(false);
+
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaRecorder.current = new MediaRecorder(stream);
 
@@ -137,12 +204,60 @@ export default function SpeechToTextPage() {
       };
 
       mediaRecorder.current.start();
+
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognition) {
+        throw new Error(
+          language === "french"
+            ? "API de reconnaissance vocale non supportée dans ce navigateur."
+            : "واجهة برمجة التعرف على الصوت غير مدعومة في هذا المتصفح."
+        );
+      }
+
+      recognitionRef.current = new SpeechRecognition();
+      recognitionRef.current.lang = language === "french" ? "fr-FR" : "ar";
+      recognitionRef.current.interimResults = false;
+      recognitionRef.current.maxAlternatives = 1;
+
+      recognitionRef.current.onresult = (event) => {
+        if (event.results && event.results[0] && event.results[0][0]) {
+          const transcribed = event.results[0][0].transcript;
+          setTranscribedText(transcribed);
+        } else {
+          setTranscribedText("");
+          setFeedback(
+            language === "french"
+              ? "Aucun texte transcrit par l'API de reconnaissance vocale."
+              : "لم يتم استخراج أي نص بواسطة واجهة التعرف على الصوت."
+          );
+        }
+      };
+
+      recognitionRef.current.onerror = (event) => {
+        console.error("Erreur SpeechRecognition :", event.error, event);
+        setFeedback(
+          language === "french"
+            ? `Erreur de reconnaissance vocale : ${event.error}`
+            : `خطأ في التعرف الصوتي: ${event.error}`
+        );
+        setTranscribedText(
+          language === "french"
+            ? "Erreur lors de la transcription."
+            : "خطأ أثناء النسخ."
+        );
+      };
+
+      recognitionRef.current.onend = () => {
+        console.log("SpeechRecognition terminé.");
+      };
+
+      recognitionRef.current.start();
     } catch (error) {
       console.error("Erreur démarrage enregistrement :", error);
       setFeedback(
         language === "french"
-          ? "Erreur : accès au microphone refusé."
-          : "خطأ: تم رفض الوصول إلى الميكروفون."
+          ? `Erreur : ${error.message || "Accès au microphone refusé."}`
+          : `خطأ: ${error.message || "تم رفض الوصول إلى الميكروفون."}`
       );
       setIsRecording(false);
     }
@@ -152,6 +267,9 @@ export default function SpeechToTextPage() {
     if (mediaRecorder.current) {
       setIsRecording(false);
       mediaRecorder.current.stop();
+    }
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
     }
   };
 
@@ -166,42 +284,20 @@ export default function SpeechToTextPage() {
     }
 
     setIsLoading(true);
-    const formData = new FormData();
-    formData.append("file", recordedAudio, "recording.wav");
-
-    const endpoint =
-      language === "french"
-        ? "http://localhost:8000/convert-speech-to-textFR/"
-        : "http://localhost:8000/convert-speech-to-textAR/";
+    setIsTranscribed(false);
+    setIsFeedbackReady(false);
+    setIsFeedbackAudioPlaying(false);
 
     try {
-      console.log("Envoi à l’API STT :", endpoint);
-      const response = await fetch(endpoint, {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
+      if (!transcribedText || typeof transcribedText !== "string") {
         throw new Error(
           language === "french"
-            ? `Erreur API : ${response.status} - ${errorText}`
-            : `خطأ API: ${response.status} - ${errorText}`
+            ? "Aucun texte transcrit par l'API de reconnaissance vocale."
+            : "لم يتم استخراج أي نص بواسطة واجهة التعرف على الصوت."
         );
       }
 
-      const data = await response.json();
-      const transcribed = data.transcribed_text;
-
-      if (!transcribed || typeof transcribed !== "string") {
-        throw new Error(
-          language === "french"
-            ? "La réponse de l'API ne contient pas de texte valide."
-            : "استجابة API لا تحتوي على نص صحيح."
-        );
-      }
-
-      if (transcribed === "") {
+      if (transcribedText.trim() === "") {
         setTranscribedText(
           language === "french"
             ? "Aucun texte transcrit."
@@ -210,12 +306,13 @@ export default function SpeechToTextPage() {
         setFeedback(
           language === "french" ? "❌ Aucun texte détecté." : "❌ لم يتم اكتشاف نص."
         );
+        setIsLoading(false);
+        setIsTranscribed(true);
+        setIsFeedbackReady(true);
         return;
       }
 
-      setTranscribedText(transcribed);
-
-      const normalizedTranscribed = transcribed
+      const normalizedTranscribed = transcribedText
         .toLowerCase()
         .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "")
         .trim();
@@ -224,54 +321,88 @@ export default function SpeechToTextPage() {
         .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "")
         .trim();
 
+      let feedbackText = "";
       if (normalizedTranscribed === normalizedCurrentWord) {
-        setFeedback(
-          language === "french" ? "🎉 Correct ! Excellent !" : "🎉 صحيح، أحسنت !"
-        );
+        feedbackText = language === "french" ? "🎉 Correct ! Excellent !" : "🎉 صحيح، أحسنت !";
         setCorrectCount((prev) => prev + 1);
       } else {
-        setFeedback(
-          language === "french"
-            ? "❌ Incorrect. Essayez encore."
-            : "❌ خطأ. حاول مرة أخرى."
-        );
+        feedbackText = language === "french" ? "❌ Incorrect. Essayez encore." : "❌ خطأ. حاول مرة أخرى.";
       }
+      setFeedback(feedbackText);
 
       const feedbackFormData = new FormData();
       feedbackFormData.append("type_exercice", "prononciation");
       feedbackFormData.append("mot_attendu", currentWord);
-      feedbackFormData.append("transcription_patient", transcribed);
+      feedbackFormData.append("transcription_patient", transcribedText);
       feedbackFormData.append("langue", language === "french" ? "fr" : "ar");
 
+      console.log("Envoi de la requête au backend pour le feedback...");
       const feedbackResponse = await fetch("http://localhost:8000/feedback_text_generator/", {
         method: "POST",
         body: feedbackFormData,
       });
 
+      if (!feedbackResponse.ok) {
+        const errorText = await feedbackResponse.text();
+        throw new Error(
+          `Erreur API feedback : ${feedbackResponse.status} - ${errorText}`
+        );
+      }
+
       const feedbackData = await feedbackResponse.json();
+      let cleanFeedback = "";
       if (feedbackData.feedback && typeof feedbackData.feedback === "string") {
-        const cleanFeedback = feedbackData.feedback
+        cleanFeedback = feedbackData.feedback
           .trim()
           .replace(/undefined/gi, "")
           .replace(/\s+/g, " ")
           .replace(/(\.\s*)+$/, ".");
         setApiFeedback(cleanFeedback || (language === "french" ? "Feedback indisponible." : "الملاحظات غير متوفرة."));
       } else {
-        setApiFeedback(
+        throw new Error(
           language === "french"
-            ? "Désolé, je n'ai pas pu générer de feedback."
-            : "عذرًا، لم أتمكن من إنشاء ملاحظات."
+            ? "La réponse de l'API feedback ne contient pas de feedback valide."
+            : "استجابة API الملاحظات لا تحتوي على ملاحظات صحيحة."
         );
       }
-    } catch (error) {
-      console.error("Erreur STT ou Feedback :", {
-        message: error.message,
-        stack: error.stack,
+
+      const ttsUrl = language === "french"
+        ? `http://localhost:8000/convert-text-to-speechFR/?text=${encodeURIComponent(cleanFeedback)}`
+        : `http://localhost:8000/convert-text-to-speechAR/?text=${encodeURIComponent(cleanFeedback)}`;
+
+      console.log("Envoi de la requête au backend pour la synthèse vocale :", ttsUrl);
+      const ttsResponse = await fetch(ttsUrl, {
+        method: "POST",
       });
+
+      if (!ttsResponse.ok) {
+        const errorText = await ttsResponse.text();
+        console.error("Erreur API text-to-speech :", ttsResponse.status, errorText);
+        setApiFeedback(cleanFeedback);
+        setIsTranscribed(true);
+        setIsFeedbackReady(true);
+        return;
+      }
+
+      const audioBlob = await ttsResponse.blob();
+      if (audioBlob.size === 0) {
+        throw new Error(
+          language === "french"
+            ? "Fichier audio vide reçu."
+            : "تم استلام ملف صوتي فارغ."
+        );
+      }
+
+      const audioUrl = URL.createObjectURL(audioBlob);
+      setFeedbackAudioURL(audioUrl);
+      setIsTranscribed(true);
+      setIsFeedbackReady(true);
+    } catch (error) {
+      console.error("Erreur dans sendAudioToAPI :", error);
       setFeedback(
         language === "french"
-          ? `Erreur : ${error.message}`
-          : `خطأ: ${error.message}`
+          ? `Erreur : ${error.message || "Erreur inconnue lors de la transcription ou du feedback."}`
+          : `خطأ: ${error.message || "خطأ غير معروف أثناء النسخ أو الملاحظات."}`
       );
       setTranscribedText(
         language === "french"
@@ -283,8 +414,32 @@ export default function SpeechToTextPage() {
           ? "Erreur lors de la génération du feedback."
           : "خطأ أثناء إنشاء الملاحظات."
       );
+      setIsTranscribed(true);
+      setIsFeedbackReady(true);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleFeedbackAudioPlayPause = () => {
+    if (feedbackAudioRef.current) {
+      if (isFeedbackAudioPlaying) {
+        feedbackAudioRef.current.pause();
+        setIsFeedbackAudioPlaying(false);
+      } else {
+        feedbackAudioRef.current
+          .play()
+          .then(() => setIsFeedbackAudioPlaying(true))
+          .catch((error) => {
+            console.warn("Erreur lecture audio feedback :", error);
+            setIsFeedbackAudioPlaying(false);
+            setFeedback(
+              language === "french"
+                ? "Erreur : impossible de jouer le son."
+                : "خطأ: لا يمكن تشغيل الصوت."
+            );
+          });
+      }
     }
   };
 
@@ -306,11 +461,15 @@ export default function SpeechToTextPage() {
     setFeedback("");
     setApiFeedback("");
     setDisplayedApiFeedback("");
+    setFeedbackAudioURL(null);
     setIsRecording(false);
     setIsLoading(false);
     setIsPlaying(false);
+    setIsFeedbackAudioPlaying(false);
     setCurrentTime(0);
     setDuration(0);
+    setIsTranscribed(false);
+    setIsFeedbackReady(false);
   };
 
   const handleRetry = () => {
@@ -320,19 +479,31 @@ export default function SpeechToTextPage() {
     setFeedback("");
     setApiFeedback("");
     setDisplayedApiFeedback("");
+    setFeedbackAudioURL(null);
     setIsRecording(false);
     setIsLoading(false);
     setIsPlaying(false);
+    setIsFeedbackAudioPlaying(false);
     setCurrentTime(0);
     setDuration(0);
+    setIsTranscribed(false);
+    setIsFeedbackReady(false);
   };
 
   const handleReRecord = () => {
     setRecordedAudio(null);
     setAudioURL(null);
+    setTranscribedText("");
+    setFeedback("");
+    setApiFeedback("");
+    setDisplayedApiFeedback("");
+    setFeedbackAudioURL(null);
     setIsPlaying(false);
+    setIsFeedbackAudioPlaying(false);
     setCurrentTime(0);
     setDuration(0);
+    setIsTranscribed(false);
+    setIsFeedbackReady(false);
   };
 
   const handleBackToLanguageChoice = () => {
@@ -345,13 +516,17 @@ export default function SpeechToTextPage() {
     setFeedback("");
     setApiFeedback("");
     setDisplayedApiFeedback("");
+    setFeedbackAudioURL(null);
     setIsRecording(false);
     setIsLoading(false);
     setCorrectCount(0);
     setIsPlaying(false);
+    setIsFeedbackAudioPlaying(false);
     setCurrentTime(0);
     setDuration(0);
     setIsFinished(false);
+    setIsTranscribed(false);
+    setIsFeedbackReady(false);
   };
 
   const handlePlayPause = () => {
@@ -387,7 +562,6 @@ export default function SpeechToTextPage() {
 
   return (
     <div className="relative h-screen w-screen text-white flex flex-col items-center overflow-hidden">
-      {/* Badge en haut */}
       <div className="relative z-10 w-full max-w-7xl text-center pt-2">
         <div className="inline-flex items-center justify-center bg-indigo-900/50 px-4 py-2 rounded-full transition-all hover:bg-indigo-800/70">
           <Mic className="h-5 w-5 text-cyan-300 mr-2" />
@@ -398,7 +572,6 @@ export default function SpeechToTextPage() {
           </span>
         </div>
 
-        {/* Speech-to-Text Card */}
         {language && (
           <div className="mt-12 flex justify-center">
             <Card className="relative w-full max-w-6xl h-[520px] bg-gradient-to-br from-gray-900 via-indigo-950 to-black border border-indigo-500/50 rounded-xl shadow-lg overflow-hidden">
@@ -421,7 +594,7 @@ export default function SpeechToTextPage() {
                     <div className="flex justify-center gap-4">
                       <Button
                         onClick={handleBackToLanguageChoice}
-                        className="bg-teal-600 hover:bg-teal-700 text-white text-lg font-arial py-2 px-4 rounded-lg"
+                        className="bg-[#A5158C] hover:bg-[#410445] text-white font-arial py-2 px-4 rounded-lg"
                       >
                         {language === "french" ? "Choix de langue" : "اختيار اللغة"}
                         <ArrowLeft className="ml-2 h-5 w-5" />
@@ -435,7 +608,7 @@ export default function SpeechToTextPage() {
                       </Button>
                     </div>
                   </div>
-                ) : isLoading && !recordedAudio && !transcribedText ? (
+                ) : isLoading && !recordedAudio && !isTranscribed ? (
                   <div className="text-left">
                     <p className="text-xl text-gray-200 font-arial">
                       {language === "french" ? "Chargement..." : "جاري التحميل..."}
@@ -446,7 +619,7 @@ export default function SpeechToTextPage() {
                     <div className="flex justify-between items-center">
                       <Button
                         onClick={handleBackToLanguageChoice}
-                        className="bg-teal-600 hover:bg-teal-700 text-white font-arial py-2 px-4 rounded-lg"
+                        className="bg-[#A5158C] hover:bg-[#410445] text-white font-arial py-2 px-4 rounded-lg"
                       >
                         <ArrowLeft className="mr-2 h-5 w-5" />
                         {language === "french" ? "Choix de langues" : "العودة لاختيار اللغة"}
@@ -465,7 +638,7 @@ export default function SpeechToTextPage() {
                       </h2>
                     </div>
 
-                    {!transcribedText && (
+                    {!isTranscribed && (
                       <div className="text-center">
                         {!recordedAudio ? (
                           <div className="flex flex-col items-center">
@@ -547,7 +720,7 @@ export default function SpeechToTextPage() {
                       </div>
                     )}
 
-                    {transcribedText && (
+                    {isTranscribed && isFeedbackReady && (
                       <div className={`py-6 px-4 rounded-lg my-3 min-h-[120px] ${
                         feedback.includes("Correct") || feedback.includes("صحيح")
                           ? "bg-teal-600/20"
@@ -582,6 +755,45 @@ export default function SpeechToTextPage() {
                           </div>
                         </div>
                         <div className="flex justify-center gap-3 mt-2">
+                          {apiFeedback && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    onClick={handleFeedbackAudioPlayPause}
+                                    disabled={!feedbackAudioURL}
+                                    className={`bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-600 hover:to-purple-700 shadow-lg shadow-purple-700/30 transition-all duration-300 hover:shadow-xl hover:shadow-purple-700/40 text-white text-lg font-arial py-2 px-4 rounded-lg ${
+                                      !feedbackAudioURL ? "opacity-50 cursor-not-allowed" : ""
+                                    }`}
+                                  >
+                                    {isFeedbackAudioPlaying ? (
+                                      <Pause className="mr-2 h-5 w-5" />
+                                    ) : (
+                                      <Play className="mr-2 h-5 w-5" />
+                                    )}
+                                    {isFeedbackAudioPlaying
+                                      ? language === "french"
+                                        ? "Arrêter la lecture"
+                                        : "إيقاف التشغيل"
+                                      : language === "french"
+                                      ? "Lire Feedback"
+                                      : "تشغيل الملاحظات"}
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>
+                                    {language === "french"
+                                      ? feedbackAudioURL
+                                        ? "Lire ou mettre en pause le feedback audio"
+                                        : "Chargement de l'audio..."
+                                      : feedbackAudioURL
+                                      ? "تشغيل أو إيقاف الصوت للملاحظات"
+                                      : "جاري تحميل الصوت..."}
+                                  </p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
                           {feedback.includes("Correct") || feedback.includes("صحيح") ? (
                             <Button
                               onClick={handleNewWord}
@@ -619,7 +831,6 @@ export default function SpeechToTextPage() {
         )}
       </div>
 
-      {/* Homepage */}
       <main className="relative z-10 w-full max-w-[95vw] flex flex-col items-center justify-start min-h-screen pt-16 pb-8">
         {!language && (
           <div className="flex flex-col items-center justify-start w-full min-h-[80vh] gap-8 pt-8">
@@ -651,7 +862,6 @@ export default function SpeechToTextPage() {
 
       <audio ref={audioRef} src={audioURL} />
 
-      {/* Styles globaux pour le fond */}
       <style jsx global>{`
         html, body {
           margin: 0;
@@ -687,7 +897,6 @@ export default function SpeechToTextPage() {
         }
       `}</style>
 
-      {/* Styles locaux pour l'effet de machine à écrire et la bulle de message */}
       <style jsx>{`
         @keyframes wave {
           0%, 100% { transform: scaleY(1); }
