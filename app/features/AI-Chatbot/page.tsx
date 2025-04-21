@@ -52,24 +52,13 @@ const translations = {
   fr: {
     greeting: "Bonjour ! Comment puis-je vous aider avec votre lecture et votre écriture aujourd'hui ?",
     title: "Assistant Chatbot IA",
-    subtitle:
-      "Posez des questions, obtenez de l'aide pour la lecture et l'écriture, ou explorez les ressources sur la dyslexie.",
     supportTitle: "DyslexiaCare AI chatbot",
-    voiceCommands: "Commandes Vocales",
-    voiceInstructions: "Cliquez sur le bouton du microphone et essayez de dire :",
-    example1: "Aidez-moi avec la lecture",
-    example2: "J'ai besoin d'aide pour mon écriture",
-    example3: "Qu'est-ce que la dyslexie ?",
-    example4: "Pouvez-vous simplifier ce texte pour moi ?",
     inputPlaceholder: "Tapez votre message...",
     listeningPlaceholder: "Écoute en cours...",
     micButtonTitle: "Commencer l'entrée vocale",
     micButtonTitleActive: "Arrêter l'écoute",
     sendButtonTitle: "Envoyer le message",
     speakButtonTitle: "Lire à haute voix",
-    copyright: "© 2025 DyslexiaCare. Tous droits réservés.",
-    disclaimer:
-      "Notre chatbot IA est conçu pour aider avec les défis de lecture et d'écriture, mais il ne remplace pas les conseils professionnels éducatifs ou médicaux.",
     errorPrefix: "Erreur : ",
     ttsErrorPrefix: "Erreur de synthèse vocale : ",
     voiceEnabled: "Commandes vocales activées",
@@ -78,23 +67,13 @@ const translations = {
   ar: {
     greeting: "مرحبًا! كيف يمكنني مساعدتك في القراءة والكتابة اليوم؟",
     title: "مساعد الدردشة الذكي",
-    subtitle: "اطرح أسئلة، واحصل على مساعدة في القراءة والكتابة، أو استكشف موارد عسر القراءة.",
     supportTitle: "دعم ديسليكسيا كير",
-    voiceCommands: "أوامر صوتية",
-    voiceInstructions: "انقر على زر الميكروفون وجرب أن تقول:",
-    example1: "ساعدني في القراءة",
-    example2: "أحتاج مساعدة في الكتابة",
-    example3: "ما هو عسر القراءة؟",
-    example4: "هل يمكنك تبسيط هذا النص لي؟",
     inputPlaceholder: "اكتب رسالتك...",
     listeningPlaceholder: "جاري الاستماع...",
     micButtonTitle: "بدء الإدخال الصوتي",
     micButtonTitleActive: "إيقاف الاستماع",
     sendButtonTitle: "إرسال الرسالة",
     speakButtonTitle: "قراءة بصوت عالٍ",
-    copyright: "© 2025 ديسليكسيا كير. جميع الحقوق محفوظة.",
-    disclaimer:
-      "تم تصميم روبوت الدردشة الذكي لدينا للمساعدة في تحديات القراءة والكتابة، لكنه لا يحل محل المشورة التعليمية أو الطبية المهنية.",
     errorPrefix: "خطأ: ",
     ttsErrorPrefix: "خطأ في تحويل النص إلى كلام: ",
     voiceEnabled: "الأوامر الصوتية مفعلة",
@@ -104,6 +83,7 @@ const translations = {
 
 export default function ChatBot() {
   const [language, setLanguage] = useState<Language>("fr")
+  const [currentDate, setCurrentDate] = useState<string>("")
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "1",
@@ -116,10 +96,8 @@ export default function ChatBot() {
   const [isLoading, setIsLoading] = useState(false)
   const [isListening, setIsListening] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
-  const audioChunksRef = useRef<Blob[]>([])
   const inputRef = useRef<HTMLInputElement>(null)
-  const { startListening } = useVoiceRecognition(language)
+  const { startListening, stopListening } = useVoiceRecognition(language)
 
   // Reset messages when language changes
   useEffect(() => {
@@ -133,9 +111,23 @@ export default function ChatBot() {
     ])
   }, [language])
 
+  // Update date when language changes
+  useEffect(() => {
+    const date = new Date()
+    const options: Intl.DateTimeFormatOptions = {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    }
+    const formattedDate = date.toLocaleDateString(language === "fr" ? "fr-FR" : "ar-SA", options)
+    setCurrentDate(formattedDate)
+  }, [language])
+
   // Scroll to bottom of messages when new messages are added
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" })
+    }
   }, [messages])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -165,9 +157,7 @@ export default function ChatBot() {
     try {
       // Use different endpoint based on language
       const endpoint =
-        language === "fr"
-          ? "http://127.0.0.1:8000/assitante_physique/"
-          : "http://127.0.0.1:8000/assitante_physique/"
+        language === "fr" ? "http://127.0.0.1:8000/assitante_physique/" : "http://127.0.0.1:8000/assitante_physique/"
 
       const response = await fetch(endpoint, {
         method: "POST",
@@ -273,120 +263,112 @@ export default function ChatBot() {
   const t = language === "fr" ? translations.fr : translations.ar
 
   return (
-    <div className={cn("chatbot-container", language === "ar" && "rtl")}>
-      {/* Language Toggle */}
-      <button className={cn("language-toggle", language === "ar" && "language-toggle-rtl")} onClick={toggleLanguage}>
-        <Globe className="h-4 w-4" />
-        {language === "fr" ? translations.fr.switchToArabic : translations.ar.switchToFrench}
-      </button>
+    <div className={cn("chatbot-wrapper", language === "ar" && "rtl")}>
+      {/* Chat Window */}
+      <div className="chat-window">
+        {/* Chat Header */}
+        <div className="chat-window-header">
+          <div className="chat-header-content">
+            <h3 className="font-medium text-white">{t.supportTitle}</h3>
+            <div className="text-sm text-white/70">
+              <span className="chat-date" aria-live="polite">{currentDate}</span> • {t.voiceEnabled}
+            </div>
+          </div>
+          <button
+            className={cn("language-toggle", language === "ar" && "language-toggle-rtl")}
+            onClick={toggleLanguage}
+            aria-label={language === "fr" ? "Passer à l'arabe" : "التبديل إلى الفرنسية"}
+          >
+            <Globe className="h-4 w-4" />
+            {language === "fr" ? translations.fr.switchToArabic : translations.ar.switchToFrench}
+          </button>
+        </div>
 
-      {/* Main Content */}
-      <main className="chatbot-main">
-        <div className="chatbot-content">
-          
-
-          {/* Chat Window */}
-          <div className="chat-window">
-            {/* Chat Header */}
-            <div className="chat-window-header">
-              <h3 className="font-medium text-white">{t.supportTitle}</h3>
-              <div className="text-sm text-white/70">
-                {new Date().toLocaleDateString(language === "fr" ? "fr-FR" : "ar-SA")} • {t.voiceEnabled}
+        {/* Messages Area */}
+        <div className="chat-messages">
+          {messages.map((message) => (
+            <div
+              key={message.id}
+              className={cn(
+                "chat-message",
+                message.sender === "user"
+                  ? cn("chat-message-user", language === "ar" && "chat-message-user-rtl")
+                  : cn("chat-message-bot", language === "ar" && "chat-message-bot-rtl"),
+              )}
+            >
+              <div className="chat-message-content">{message.content}</div>
+              <div className={cn("chat-message-footer", language === "ar" && "chat-message-footer-rtl")}>
+                <div className="chat-message-time">
+                  {message.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                </div>
+                {message.sender === "bot" && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="chat-message-speak"
+                    onClick={() =>
+                      language === "fr" ? speakTextInFrench(message.content) : speakTextInArabic(message.content)
+                    }
+                    title={t.speakButtonTitle}
+                  >
+                    <VolumeIcon className="h-4 w-4" />
+                  </Button>
+                )}
               </div>
             </div>
-
-            {/* Messages Area */}
-            <div className="chat-messages">
-              {messages.map((message) => (
-                <div
-                  key={message.id}
-                  className={cn(
-                    "chat-message",
-                    message.sender === "user"
-                      ? cn("chat-message-user", language === "ar" && "chat-message-user-rtl")
-                      : cn("chat-message-bot", language === "ar" && "chat-message-bot-rtl"),
-                  )}
-                >
-                  <div className="chat-message-content">{message.content}</div>
-                  <div className={cn("chat-message-footer", language === "ar" && "chat-message-footer-rtl")}>
-                    <div className="chat-message-time">
-                      {message.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                    </div>
-                    {message.sender === "bot" && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="chat-message-speak"
-                        onClick={() =>
-                          language === "fr" ? speakTextInFrench(message.content) : speakTextInArabic(message.content)
-                        }
-                        title={t.speakButtonTitle}
-                      >
-                        <VolumeIcon className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              ))}
-              <div ref={messagesEndRef} />
-              {isLoading && (
-                <div className={cn("chat-loading", language === "ar" && "chat-loading-rtl")}>
-                  <div className={cn("dot-typing", language === "ar" && "dot-typing-rtl")}></div>
-                </div>
-              )}
+          ))}
+          <div ref={messagesEndRef} />
+          {isLoading && (
+            <div className={cn("chat-loading", language === "ar" && "chat-loading-rtl")}>
+              <div className={cn("dot-typing", language === "ar" && "dot-typing-rtl")}></div>
             </div>
-
-            {/* Input Area */}
-            <form onSubmit={handleSubmit} className={cn("chat-input-area", language === "ar" && "chat-input-area-rtl")}>
-              <input
-                ref={inputRef}
-                type="text"
-                value={inputValue}
-                onChange={handleInputChange}
-                placeholder={isListening ? t.listeningPlaceholder : t.inputPlaceholder}
-                className="chat-input"
-                disabled={isLoading || isListening}
-                aria-label="Message du chat"
-                dir={language === "ar" ? "rtl" : "ltr"}
-              />
-              
-                          <Button
-                            type="button"
-                            size="icon"
-                            className={cn("dyslexia-bot-mic-button", isListening ? "dyslexia-bot-mic-active" : "")}
-                            onClick={() => {
-                              if (isListening) {
-                                stopListening()
-                                setIsListening(false)
-                              } else {
-                                setIsListening(true)
-                                startListening((text) => {
-                                  setInputValue(text)
-                                  setIsListening(false)
-                                })
-                              }
-                            }}
-                            title={isListening ? t.micStop : t.micStart}
-                          >
-                            <Mic className="h-5 w-5" />
-                          </Button>
-              <Button
-                type="submit"
-                size="icon"
-                disabled={isLoading || !inputValue.trim()}
-                className="chat-send-button"
-                title={t.sendButtonTitle}
-              >
-                <Send className="h-5 w-5" />
-              </Button>
-            </form>
-          </div>
-
-         
+          )}
         </div>
-      </main>
 
-    
+        {/* Input Area */}
+        <form onSubmit={handleSubmit} className={cn("chat-input-area", language === "ar" && "chat-input-area-rtl")}>
+          <input
+            ref={inputRef}
+            type="text"
+            value={inputValue}
+            onChange={handleInputChange}
+            placeholder={isListening ? t.listeningPlaceholder : t.inputPlaceholder}
+            className="chat-input"
+            disabled={isLoading || isListening}
+            aria-label="Message du chat"
+            dir={language === "ar" ? "rtl" : "ltr"}
+          />
+          <Button
+            type="button"
+            size="icon"
+            className={cn("chat-mic-button", isListening ? "chat-mic-active" : "")}
+            onClick={() => {
+              if (isListening) {
+                stopListening()
+                setIsListening(false)
+              } else {
+                setIsListening(true)
+                startListening((text) => {
+                  setInputValue(text)
+                  setIsListening(false)
+                })
+              }
+            }}
+            title={isListening ? t.micButtonTitleActive : t.micButtonTitle}
+          >
+            <Mic className="h-5 w-5" />
+          </Button>
+          <Button
+            type="submit"
+            size="icon"
+            disabled={isLoading || !inputValue.trim()}
+            className="chat-send-button"
+            title={t.sendButtonTitle}
+          >
+            <Send className="h-5 w-5" />
+          </Button>
+        </form>
+      </div>
     </div>
   )
 }

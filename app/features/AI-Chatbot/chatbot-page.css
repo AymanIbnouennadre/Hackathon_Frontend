@@ -9,15 +9,28 @@
   --gradient: linear-gradient(135deg, #06b6d4 0%, #3b82f6 50%, #8b5cf6 100%);
 }
 
-/* Main Container */
-.chatbot-container {
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden; /* Prevent page scrolling */
+}
+
+/* Main Container - now transparent and fixed size */
+.chatbot-wrapper {
+  position: fixed; /* Fix to viewport */
+  top: 0;
+  left: 0;
+  height: 100vh;
+  width: 100vw;
   display: flex;
-  flex-direction: column;
-  min-height: 100vh;
-  background-color: #0f172a;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden; /* Reinforce no scrolling */
   color: #f8fafc;
-  background-image: radial-gradient(circle at 25% 25%, rgba(6, 182, 212, 0.05) 0%, transparent 50%),
-    radial-gradient(circle at 75% 75%, rgba(139, 92, 246, 0.05) 0%, transparent 50%);
+  padding-top: 60px; /* Add padding to account for navbar height */
+  z-index: 0; /* ✅ LOWER than the header (which is z-10) */
+  pointer-events: none; /* 👈 This lets clicks go through the wrapper */
 }
 
 /* RTL Support */
@@ -26,60 +39,8 @@
   text-align: right;
 }
 
-/* Header */
-.chatbot-header {
-  background-color: rgba(30, 41, 59, 0.8);
-  backdrop-filter: blur(10px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  position: sticky;
-  top: 0;
-  z-index: 10;
-}
-
-/* Main Content */
-.chatbot-main {
-  flex: 1;
-  padding: 1rem;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-
-/* Content Container */
-.chatbot-content {
-  width: 100%;
-  max-width: 900px;
-  margin: 0 auto;
-  display: flex;
-  flex-direction: column;
-  gap: 2rem;
-}
-
-/* Title Section */
-.chatbot-title {
-  text-align: center;
-  margin-bottom: 2rem;
-  animation: fadeIn 0.8s ease-out;
-}
-
-.chatbot-title h1 {
-  font-size: 2.5rem;
-  margin-bottom: 0.5rem;
-  letter-spacing: -0.025em;
-}
-
-.chat-gradient-text {
-  background: var(--gradient);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-
 /* Language Toggle */
 .language-toggle {
-  position: absolute;
-  top: 1rem;
-  right: 1rem;
   background-color: rgba(30, 41, 59, 0.8);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 9999px;
@@ -91,7 +52,7 @@
   font-size: 0.875rem;
   cursor: pointer;
   transition: all 0.2s;
-  z-index: 20;
+  backdrop-filter: blur(5px);
 }
 
 .language-toggle:hover {
@@ -100,36 +61,27 @@
 }
 
 .language-toggle-rtl {
-  right: auto;
-  left: 1rem;
+  direction: rtl;
 }
 
-/* Chat Window */
+/* Chat Window - adjusted to fit viewport */
 .chat-window {
-  background-color: rgba(30, 41, 59, 0.6);
+  background-color: rgba(30, 41, 59, 0.75);
   border-radius: 1.5rem;
   overflow: hidden;
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.2), 0 0 0 1px
     rgba(255, 255, 255, 0.1);
   display: flex;
   flex-direction: column;
-  height: 700px;
-  max-height: 80vh;
+  height: 90vh; /* Use 90% of viewport height to ensure it fits */
+  max-height: 700px; /* Cap the maximum height */
   width: 100%;
+  max-width: 900px;
+  margin: 0 1rem; /* Add horizontal margin */
   backdrop-filter: blur(10px);
-  animation: slideUp 0.5s ease-out;
+  animation: fadeIn 0.5s ease-out;
   position: relative;
-}
-
-@keyframes slideUp {
-  from {
-    opacity: 0;
-    transform: translateY(30px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  pointer-events: auto; /* 👈 Enable interaction only inside chatbot */
 }
 
 @keyframes fadeIn {
@@ -160,6 +112,7 @@
   justify-content: space-between;
   align-items: center;
   position: relative;
+  backdrop-filter: blur(5px);
 }
 
 .chat-window-header::after {
@@ -178,6 +131,25 @@
   );
 }
 
+.chat-header-content {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.rtl .chat-header-content {
+  align-items: flex-end;
+}
+
+.chat-date {
+  font-size: 0.875rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.rtl .chat-date {
+  direction: rtl;
+}
+
 .chat-messages {
   flex: 1;
   overflow-y: auto;
@@ -185,8 +157,7 @@
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
-  background-image: radial-gradient(circle at 10% 90%, rgba(6, 182, 212, 0.03) 0%, transparent 30%),
-    radial-gradient(circle at 90% 10%, rgba(139, 92, 246, 0.03) 0%, transparent 30%);
+  background-color: rgba(10, 16, 31, 0.6);
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
 }
@@ -354,9 +325,6 @@
     box-shadow: -9984px 0 0 0 white, -9999px 0 0 0 white, -10014px 0 0 0 white;
   }
   83.333% {
-    box-shadow: -9984px 0 0 0 white, -9999px 0 0 0 white -10014px 0 0 0 white;
-  }
-  83.333% {
     box-shadow: -9984px 0 0 0 white, -9999px 0 0 0 white, -10014px -5px 0 0 white;
   }
   100% {
@@ -372,6 +340,7 @@
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   gap: 0.75rem;
   position: relative;
+  backdrop-filter: blur(5px);
 }
 
 .chat-input-area-rtl {
@@ -475,103 +444,39 @@
   box-shadow: none;
 }
 
-/* Help Section */
-.chat-help {
-  background-color: rgba(30, 41, 59, 0.6);
-  border-radius: 1rem;
-  padding: 1.5rem;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2), 0 4px 6px -2px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
-  animation: fadeIn 0.8s ease-out;
-  animation-delay: 0.3s;
-  animation-fill-mode: both;
-}
-
-.chat-help-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 0.75rem;
-  list-style: none;
-  padding: 0;
-  margin-top: 1rem;
-}
-
-.chat-help-list li {
-  background-color: rgba(51, 65, 85, 0.8);
-  padding: 0.875rem 1.25rem;
-  border-radius: 0.75rem;
-  font-size: 0.875rem;
-  transition: all 0.2s;
-  cursor: pointer;
-  border-left: 3px solid #06b6d4;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-}
-
-.chat-help-list-rtl li {
-  border-left: none;
-  border-right: 3px solid #06b6d4;
-}
-
-.chat-help-list li:hover {
-  background-color: rgba(71, 85, 105, 0.8);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-}
-
-/* Footer */
-.chatbot-footer {
-  background-color: rgba(30, 41, 59, 0.8);
-  padding: 2rem 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
-}
-
-/* DyslexiaCare Teal Color */
-.text-dyslexia-teal {
-  color: #06b6d4;
-}
-
-/* Responsive adjustments */
+/* Responsive adjustments - ensure no scrolling at any screen size */
 @media (max-width: 768px) {
-  .chatbot-main {
-    padding: 1rem 0.5rem;
-  }
-
   .chat-window {
-    height: 600px;
+    height: 85vh; /* Slightly smaller on medium screens */
+    max-height: 600px;
     border-radius: 1rem;
-  }
-
-  .chat-help-list {
-    grid-template-columns: 1fr;
   }
 
   .chat-message {
     max-width: 90%;
   }
-
-  .chatbot-title h1 {
-    font-size: 1.75rem;
-  }
 }
 
 @media (max-width: 480px) {
-  .chatbot-title {
-    text-align: left;
+  .chat-window {
+    height: 80vh; /* Even smaller on mobile screens */
+    max-height: 500px;
+    border-radius: 0.75rem;
+    margin: 0 0.5rem; /* Smaller horizontal margin */
   }
 
-  .chat-window {
-    height: 500px;
-    border-radius: 0.75rem;
+  .language-toggle {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.75rem;
   }
 
   .chat-window-header,
   .chat-input-area {
-    padding: 1rem;
+    padding: 0.75rem;
   }
 
   .chat-messages {
-    padding: 1rem;
+    padding: 0.75rem;
   }
 
   .chat-message {

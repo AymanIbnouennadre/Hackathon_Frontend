@@ -628,7 +628,7 @@ const useVoiceRecognition = (language: Language) => {
 // Translations for UI text
 const translations = {
   fr: {
-    greeting: "Bonjour ! Comment puis-je vous aider avec votre lecture et votre écriture aujourd'hui ?",
+    greeting: "Bonjour ! Comment puis-je vous aider avec votre lecture et votre écriture aujourd'hui ? ",
     title: "DyslexiaCare AI chatbot",
     placeholder: "Tapez votre message...",
     listeningPlaceholder: "Écoute en cours...",
