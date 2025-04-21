@@ -21,7 +21,7 @@ export default function FeaturesLayout({ children }: { children: React.ReactNode
       </div>
 
       {/* Navbar designée */}
-      <header className="bg-black/40 backdrop-blur-md border-b border-white/10 relative z-10">
+      <header className="bg-gradient-to-b from-gray-900 to-black border-b border-white/10 relative z-10">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <Link href="/" className="flex items-center space-x-2">
@@ -34,27 +34,13 @@ export default function FeaturesLayout({ children }: { children: React.ReactNode
               </span>
             </Link>
             <nav className="hidden md:flex space-x-8">
-            <Link href="/" className="text-gray-300 hover:text-cyan-400 transition-colors">
-            Home
-              </Link>
-            <Link href="/features" className="text-gray-300 hover:text-cyan-400 transition-colors">
-            Features
-              </Link>
-              <Link href="/features/AI-Assistant" className="text-gray-300 hover:text-cyan-400 transition-colors">
-                AI Assistant
-              </Link>
-              <Link href="/features/AI-Chatbot" className="text-gray-300 hover:text-cyan-400 transition-colors">
-                Chatbot
-              </Link>
-              <Link href="/features/OCR-TTS" className="text-gray-300 hover:text-cyan-400 transition-colors">
-                OCR-TTS
-              </Link>
-              <Link href="/features/Quiz" className="text-gray-300 hover:text-cyan-400 transition-colors">
-                Quiz
-              </Link>
-              <Link href="/features/speech-to-text" className="text-gray-300 hover:text-cyan-400 transition-colors">
-                Speech-to-Text
-              </Link>
+              <Link href="/" className="text-gray-300 hover:text-cyan-400 transition-colors">Home</Link>
+              <Link href="/features" className="text-gray-300 hover:text-cyan-400 transition-colors">Features</Link>
+              <Link href="/features/AI-Assistant" className="text-gray-300 hover:text-cyan-400 transition-colors">AI Assistant</Link>
+              <Link href="/features/AI-Chatbot" className="text-gray-300 hover:text-cyan-400 transition-colors">Chatbot</Link>
+              <Link href="/features/OCR-TTS" className="text-gray-300 hover:text-cyan-400 transition-colors">OCR-TTS</Link>
+              <Link href="/features/Quiz" className="text-gray-300 hover:text-cyan-400 transition-colors">Quiz</Link>
+              <Link href="/features/speech-to-text" className="text-gray-300 hover:text-cyan-400 transition-colors">Speech-to-Text</Link>
             </nav>
           </div>
         </div>
