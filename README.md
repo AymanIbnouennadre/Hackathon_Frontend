@@ -1,4 +1,4 @@
-# DyslexiaCare Frontend
+# DyslexiaCare Frontend With Nextjs and TailwindCss
 
 ## Overview
 DyslexiaCare is an AI-powered web app built for a hackathon to assist children with dyslexia. It offers personalized, gamified learning experiences to improve reading skills through features like an AI chatbot, OCR-TTS, quizzes, and speech-to-text. Developed using Next.js and Tailwind CSS, the app ensures a dyslexia-friendly UI with high-contrast colors and readable fonts. It supports multiple languages (English, French, Arabic) and was created in collaboration with orthophonic doctors to meet therapeutic needs.
